@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Rapp.history
+.DS_Store
+desktop.ini
+
+data/*
+data/
+
+.PowerFolder/
