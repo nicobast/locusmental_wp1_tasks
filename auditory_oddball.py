@@ -3,7 +3,7 @@
 
 '''LOAD MODULES'''
 # Core libraries:
-from psychopy import visual, core, event, clock, data, gui, monitors, parallel
+from psychopy import visual, core, event, clock, data, gui, monitors
 import random, time, numpy
 # For controlling eye tracker and eye-tracking SDK:
 import tobii_research
@@ -12,7 +12,9 @@ from psychopy.iohub import launchHubServer
 from psychopy.hardware import keyboard
 # For playing sound:
 from psychopy import prefs
-prefs.hardware['audioLib'] = ['PTB'] #PTB described as highest accuracy sound class
+prefs.hardware['audioLib'] = ['ptb'] #PTB described as highest accuracy sound class
+prefs.hardware['audioDevice'] = 'Kopfhörer (HyperX Virtual Surround Sound)' # define audio device - DEVICE SPECIFIC
+prefs.hardware['audioLatencyMode'] = 3 #high sound priority, low latency mode
 from psychopy import sound
 import psychtoolbox as ptb #sound processing via ptb
 # For managing paths:
@@ -29,7 +31,7 @@ environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 # Setup logging:
 current_datetime = datetime.now()
 formatted_datetime = str(current_datetime.strftime("%Y-%m-%d %H-%M-%S"))
-logging_path = Path("Desktop", "tasks", "data", "auditory_oddball", "logging_data").resolve()
+logging_path = Path("data", "auditory_oddball", "logging_data").resolve()
 filename_auditory_oddball = os.path.join(logging_path, formatted_datetime)
 
 logging.basicConfig(
@@ -42,7 +44,7 @@ print('THIS IS AUDITORY ODDBALL.')
 logging.info(' THIS IS AUDITORY ODDBALL.')
 
 # Path to output data:
-path_to_data = Path("Desktop", "tasks", "data", "auditory_oddball").resolve()
+path_to_data = Path("data", "auditory_oddball").resolve()
 trials_data_folder = Path(path_to_data, 'trialdata')
 eyetracking_data_folder = Path(path_to_data, 'eyetracking')
 
@@ -51,9 +53,15 @@ print(eyetracking_data_folder)
 logging.info(' ' f'{trials_data_folder}')
 logging.info(' ' f'{eyetracking_data_folder}')
 
-# Testmode.
-# TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required.
-testmode = False
+# Testmode options
+# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
+# testmode_eeg = TRUE mimics an parallel port trigger an on-screen notation, FALSE = parallel port is available and defined, search "parallel_port_adress"
+testmode_et = True
+testmode_eeg = True
+
+# load parallel port module if not in eeg testmode
+if not testmode_eeg:
+    from psychopy import parallel
 
 # Experimental settings:
 # Input dialgue boxes are presented on external screen 1.
@@ -114,7 +122,7 @@ fileName = f'auditory_{settings["id"]}_{data.getDateStr(format="%Y-%m-%d-%H%M")}
 # The dictionary "settings" is passed to the experiment handler.
 exp = data.ExperimentHandler(
     name="auditory_oddball",
-    version='0.1',
+    version='0.2',
     extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
@@ -123,8 +131,8 @@ exp = data.ExperimentHandler(
 # saved in the settings dictionary:
 random_number = random.random()
 if random_number < 0.5:
-    standard_sound = sound.Sound(sound_one_in_Hz)
-    oddball_sound = sound.Sound(sound_two_in_Hz)
+    standard_sound = sound.Sound(sound_one_in_Hz, stereo=False)
+    oddball_sound = sound.Sound(sound_two_in_Hz, stereo=False)
     sound_standard = sound_one_in_Hz
     sound_oddball = sound_two_in_Hz
     print('oddball sound is ', sound_two_in_Hz,' Hz')
@@ -133,8 +141,8 @@ if random_number < 0.5:
     settings['oddball_frequency'] = sound_two_in_Hz
 
 if random_number >= 0.5:
-    standard_sound = sound.Sound(sound_two_in_Hz)
-    oddball_sound = sound.Sound(sound_one_in_Hz)
+    standard_sound = sound.Sound(sound_two_in_Hz, stereo=False)
+    oddball_sound = sound.Sound(sound_one_in_Hz, stereo=False)
     sound_standard = sound_two_in_Hz
     sound_oddball = sound_one_in_Hz
     print('oddball sound is ', sound_one_in_Hz,' Hz')
@@ -144,11 +152,11 @@ if random_number >= 0.5:
 
 # Monitor parameters are adapted to presentation PC.
 # Name is saved with PsychoPy monitor manager.
-# Distance is from screenin cm.
+# units (width, distance) are in cm.
 mon = monitors.Monitor(
-    name = 'eizo_eyetracker',
-    width = 29.6,
-    distance = 65)
+    name = 'LGcenter_nico_workstation',
+    width = 71,
+    distance = 60)
 
 # Create display window.
 # Unit was changed to pixel so that eye trcker outputs pixel on presentation screen.
@@ -165,11 +173,11 @@ print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
-if testmode:
+if testmode_et:
     logging.info(' TESTMODE = TRUE')
     print('mouse is used to mimick eyetracker...')
     iohub_config = {'eyetracker.hw.mouse.EyeTracker': {'name': 'tracker'}}
-if not testmode:
+if not testmode_et:
     logging.info('TESTMODE = FALSE')
     # Search for eye tracker:
     found_eyetrackers = tobii_research.find_all_eyetrackers()
@@ -228,7 +236,7 @@ trigger_name_list = ['PLACEHOLDER', #0
 print(trigger_name_list)
 
 # Find a parallel port:
-if not testmode:
+if not testmode_eeg:
     port = parallel.ParallelPort(parallel_port_adress)
     # Set all pins to low, otherwise no triggers will be sent.
     port.setData(0) 
@@ -260,7 +268,7 @@ def send_trigger(trigger_name):
             trigger_byte = f'{trigger_value:08b}'
 
             #set pins according to trigger byte
-            if not testmode:
+            if not testmode_eeg:
                 port.setPin(2, int(trigger_byte[7]))
                 port.setPin(3, int(trigger_byte[6]))
                 port.setPin(4, int(trigger_byte[5]))
@@ -275,7 +283,7 @@ def send_trigger(trigger_name):
                 # Set all pins back to zero:
                 port.setData(0)
 
-            if testmode:
+            if testmode_eeg:
                 print('sent DUMMY trigger S' + str(trigger_value))
                 logging.info(' DUMMY TRIGGER WAS SENT: S' f'{trigger_value}')
             trigger_name_found = True

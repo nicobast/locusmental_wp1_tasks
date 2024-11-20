@@ -1,0 +1,26 @@
+Parallel Port Tester
+Version 1.0.0.2
+by Doug Brown
+http://www.downtowndougbrown.com/
+
+For details on this software, visit:
+
+http://www.downtowndougbrown.com/2013/06/parallel-port-tester/
+
+System Requirements:
+* Windows 2000 or newer. Should work with 2000, XP, Vista, 7, 8, and the various newer server versions. 32- or 64-bit Windows are both supported.
+* Microsoft .NET Framework 2.0 or newer
+* Inpout32.dll
+
+I recommend using the version of Inpout32 available at the following URL:
+http://www.highrez.co.uk/downloads/inpout32/default.htm
+
+If you are using Windows Vista or newer, you will need to run the InstallDriver.exe program inside the Win32 directory of Inpout32's distribution in order to install the driver. You only have to do this once, and it's just so you can get administrator privileges in order to install the driver. Even if you are on a 64-bit operating system, that's OK. Still run InstallDriver.exe from the Win32 directory.
+
+Put Inpout32.dll from the Win32 directory into the same directory as ParallelPortTester.exe. Don't use the x64 directory; that DLL would only be for a 64-bit program, but Parallel Port Tester is not a 64-bit program.
+
+Version History:
+
+1.0.0.0 -- Original release
+1.0.0.1 -- Works around Windows problem causing incorrect port listing
+1.0.0.2 -- Fixes a bug that was causing a crash in Windows XP
