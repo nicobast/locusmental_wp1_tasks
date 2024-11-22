@@ -15,24 +15,15 @@ NOTE: inpout32.dll file is required in experiment folder (driver file) to send p
 ## Install presentation PC:
   * PREFERED: download and install standalone version of psychopy: https://www.psychopy.org/download.html
     --> run scripts from built-in python instance
-  * ALTERNATIVE: install psychopy via pip:
-      * install python 3.6
-      * setup SWIG (this is necessary to install pyWinhook that is a dependency for psychopy)
-        -download swig
-        -extract zip content
-        -set environment variable to swig.exe folder (requires visual studio c++ build tolls) (visual studio build tools 2019)
-        -restart cmd window
-      * note: I also had to adapt environment variables and remove visual studio reference of python 3.6 install in system path
-      * optional: pip install h5py - to read HDF5 files that are written by iohub for the eyetracking data
-      * py -m pip install --upgrade pip
-      * pip install psychopy
-
+  * required eye tracker package for python needs to be installed from CMD as administrator: "C:\Program Files\PsychoPy\python.exe" -m pip install psychopy-eyetracker-tobii
+  
 ## run task:
+* open project folder with python scripts of experiment, e.g.: "C:\Users\nico\PowerFolders\project_locusmental_wp1"
+* open CMD by typing "cmd" into file browser
 * in CMD execute script of task with standalone psychopy version:
-* requires location of psychopy stanalone version: e.g: "C:\Users\stimulation\AppData\Local\Programs\PsychoPy\python.exe", "C:\Program Files\PsychoPy\python.exe"
-* also requires location of script e.g.: C:\Users\stimulation\Desktop\project_py_oddball_280322\auditory_oddball.py, "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball.py"
-* then run in CMD: C:\Users\stimulation\AppData\Local\Programs\PsychoPy\python.exe C:\Users\stimulation\Desktop\project_py_oddball_280322\auditory_oddball.py
-* or: "C:\Program Files\PsychoPy\python.exe" "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball.py"
+* requires location of psychopy stanalone version: e.g: "C:\Program Files\PsychoPy\python.exe"
+* requires location of script e.g.: "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball.py"
+* then run in CMD: "C:\Program Files\PsychoPy\python.exe" "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball_core.py"
 
 ## Monitor and display settings
 Monitor parameters are adapted to the presentation PC. The name is saved with psychopy monitor manager. Please note:
@@ -55,22 +46,11 @@ send parallel port trigger: https://psychopy.org/api/parallel.html -> send trigg
 The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. In four task blocks, each including 100 trials, a frequent tone (standard) is presented with a probability of 80% while an infrequent tone of a different pitch (oddball) is presented with a probability of 20%. The pitch level indicating oddballs in the 1st task block and the 3rd task block (oddball blocks) are either 500 Hz or 750 Hz. Oddballs in the 2nd and 4th task block are of the opposite pitch (oddball blocks reverse). Three additional standard trials precede each task block.  
 
 ### Task sequence
-1. instruction slide 1
+1. intro slide
 2. baseline calibration
 3. oddball block
 4. baseline phase
-5. oddball block reverse
-6. baseline phase
-7. instruction slide 2
-8. manipulation block
-9. baseline phase
-10. oddball block
-11. baseline phase
-12. oddball block reverse
-13. baseline phase
-14. instruction slide 3
-
-The task contains a manipulation according to Mather et al., 2020. The manipulation is an isometric handgrip exercice. A yellow circle indicates 60 seconds of rest, a blue circle indicates 18 seconds of handgrip exercice. Luminance of both circles are matched. Luminance formula for yellow: 0.3 R + 0.59 G + 0.11 B -> 0.2 + 0.1 -> luminance = = 0.119; see:  https://www.w3.org/TR/AERT/#color-contrast. Luminance for blue is matched to yellow circle: 0.3 R + 0.59 G + 0.11 B --> luminance = 0.11; see: https://www.w3.org/TR/AERT/#color-contrast.
+7. outro slide
 
 ## The Visual Oddball Task
 The task is used and to observe effects of task utility and stimulus salience. It contains independent manipulations of both. In four task blocks, each including 150 trials, a frequent purple circle is presented with a probability of 80% while an infrequent smaller purple circle (oddball) is presented with a probability of 20%. As in the Auditory Oddball task, three additional standard trials precede each task block. The task starts with four separate practice blocks, each containing of 13 trials, as a familiarisation. In the end, the test subjcet receives feedback aboout their winnings. 
