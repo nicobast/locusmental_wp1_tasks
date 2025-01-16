@@ -9,6 +9,27 @@ This study consists of four tasks:
 
 During all tasks, pupil dilation is measured via eye tracking and parallel port triggers are sent to an EEG recording PC. Several baseline phases are used to determine tonic pupil size. 
 
+## Installation Guide for Python and Required Modules
+# Python Installation
+* The required Python module tobii-research is compatible only with Python 3.10. Therefore, ensure you install Python 3.10 according to your system requirements or create a virtual environment that uses Python 3.10.
+* Do not download Python from the Microsoft Store, as it is treated as an app, which can cause conflicts. Instead, download Python directly from the official website: https://www.python.org/downloads/windows/.
+  * When running the installer (.exe file):
+      1. Run it as Administrator.
+      2. Check the box "Add PYTHON to PATH" to automatically set the environment variable, avoiding manual setup.
+# Working with Multiple Python Versions
+* If you have multiple Python versions installed, you can create a virtual environment specifically for Python 3.10:
+  * Check the Python version available: python --version
+  * Create a virtual environment using Python 3.10: python3.10 -m venv environment_name
+  * Activate the virtual environment: environment_name\Scripts\activate
+# Installing Required Modules
+ * you use a virtual environment, all modules must be installed within that environment:
+  1. Psychopy: Install version 2023.1.3, as newer versions may not be compatible : pip install psychopy==2023.1.3
+  2. NumPy: Install version 1.23.5: pip install numpy==1.23.5
+  3. Verify all installed modules using: pip list
+  4. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
+# Running Animations
+To run animation files, you need the module Manim. For better compatibility, it is recommended to use a separate virtual environment with a newer Python version (e.g., Python 3.11). Avoid installing Manim and Psychopy in the same environment due to dependency conflicts.
+
 ## Install instructions
 NOTE: inpout32.dll file is required in experiment folder (driver file) to send parallel port triggers
 
@@ -84,3 +105,21 @@ The task is used and to observe effects of task utility and stimulus salience. I
 * *size_fixation_cross_in_pixels = 132*, also defines standard stimulus size and translates to 3.2 degrees visual angle on 24 inch screen with 25.59 inches screen distance (see https://elvers.us/perception/visualAngle/)
 * *high_salience_ball_size = round(0.5 * size_fixation_cross_in_pixels)* translates to 1.6 degrees visual angle on 24 inch screen with 25.59 inches screen distance.
 * *low_salience_ball_size = round(0.91 * size_fixation_cross_in_pixels)* translates to 2.9 degrees visual angle on 24 inch screen with 25.59 inches screen distance.
+
+
+## Cued Visual Search Task
+# Two Versions Available
+  * cued-visual-search-cross.py - fixation cross as inter stimulus
+  * cued-visual-search-animation.py - animations as inter stimulus
+
+# For the Animations
+  * The animations are pre-rendered and stored in the project directory: .\Media\Videos\1080x60.
+  * You need to either download the animations or clone them with the repository.
+* If you want to render the animations from the animation-cued-visual-search.py script:
+  * The rendered videos will be stored in the same location (.\Media\Videos\1080p60).
+  * After rendering, select the videos you want to use and rename them sequentially from 1 to 21, otherwise you need to adjust the code in the task
+
+# Before running the task
+  * Create folders in your project directory if not existing data\cued_visual_search\logging_data
+  * Set resolution to fit your monitor
+  * Use 'escape' to abrupt the task
