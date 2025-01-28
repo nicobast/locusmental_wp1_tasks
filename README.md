@@ -30,6 +30,16 @@ During all tasks, pupil dilation is measured via eye tracking and parallel port 
 # Running Animations
 To run animation files, you need the module Manim. For better compatibility, it is recommended to use a separate virtual environment with a newer Python version (e.g., Python 3.11). Avoid installing Manim and Psychopy in the same environment due to dependency conflicts.
 
+# Submodule iohub
+ * Issue: during task execution, an error in one of the module files occured prevented the recording of gaze data.
+  - ERROR: KeyError: 'right_gaze_origin_in_trackbox_coordinate_system'
+  - Problem Background: The KeyError occurs because the code attempts to access a non-existing key 'right_gaze_origin_in_trackbox_coordinate_system', in the gaze data returned by the Tobii eye tracker. In the tobii-research module, the correct keys are: 'right_gaze_origin_in_user_coordinate_system' instead.
+  - Solution: 
+    1.  Locate the following file in your Python environment: <Python Environment Directory>lib\site-packages\psychopy\iohub\devices\eyetracker\hw\tobii\eyetracker.py
+    2.  Find lines 432 and 433 and replace them with the following corrected code:
+        right_gx, right_gy, right_gz = eye_data_event['right_gaze_origin_in_user_coordinate_system']
+        left_gx, left_gy, left_gz = eye_data_event['left_gaze_origin_in_user_coordinate_system']
+
 ## Install instructions
 NOTE: inpout32.dll file is required in experiment folder (driver file) to send parallel port triggers
 
