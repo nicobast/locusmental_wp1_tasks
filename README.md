@@ -25,7 +25,8 @@ During all tasks, pupil dilation is measured via eye tracking and parallel port 
  * Installation requires "Microsoft Visual C++ 14.0" bundled with "Microsoft C++ Build Tools" (Desktop Development with C++).
  * you use a virtual environment, all modules must be installed within that activate environment:
   1. Psychopy: Install version 2023.1.3, as newer versions may not be compatible : pip install psychopy==2023.1.3
-  3. NumPy: Install version 1.23.5: pip install numpy==1.23.5
+  2. NumPy: Install version 1.23.5: pip install numpy==1.23.5
+  3. Tobii Pro SDK as Tobii Research Python module: pip install tobii_research
   4. Verify installation of Psychopy and Numpy using: pip list
   5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
 # Running Animations
@@ -40,9 +41,6 @@ To run animation files, you need the module Manim. For better compatibility, it 
     2.  Find lines 432 and 433 and replace them with the following corrected code:
         right_gx, right_gy, right_gz = eye_data_event['right_gaze_origin_in_user_coordinate_system']
         left_gx, left_gy, left_gz = eye_data_event['left_gaze_origin_in_user_coordinate_system']
-
-## Install instructions
-NOTE: inpout32.dll file is required in experiment folder (driver file) to send parallel port triggers
 
 ## Install presentation PC:
   * PREFERED: download and install standalone version of psychopy: https://www.psychopy.org/download.html
