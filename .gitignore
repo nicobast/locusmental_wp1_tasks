@@ -9,4 +9,6 @@ desktop.ini
 data/*
 data/
 
+venv_battery/ 
+
 .PowerFolder/

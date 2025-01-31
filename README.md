@@ -15,18 +15,19 @@ During all tasks, pupil dilation is measured via eye tracking and parallel port 
 * Do not download Python from the Microsoft Store, as it is treated as an app, which can cause conflicts. Instead, download Python directly from the official website: https://www.python.org/downloads/windows/.
   * When running the installer (.exe file):
       1. Run it as Administrator.
-      2. Check the box "Add PYTHON to PATH" to automatically set the environment variable, avoiding manual setup.
+      2. Check the box "Add PYTHON to PATH" to automatically set the environment variable: "python" command is enabled within terminal.
 # Working with Multiple Python Versions
-* If you have multiple Python versions installed, you can create a virtual environment specifically for Python 3.10:
+* If you have multiple Python versions installed, you can create a virtual environment specifically for Python 3.10 in the terminal:
   * Check the Python version available: python --version
   * Create a virtual environment using Python 3.10: python3.10 -m venv environment_name
   * Activate the virtual environment: environment_name\Scripts\activate
 # Installing Required Modules
- * you use a virtual environment, all modules must be installed within that environment:
+ * Installation requires "Microsoft Visual C++ 14.0" bundled with "Microsoft C++ Build Tools" (Desktop Development with C++).
+ * you use a virtual environment, all modules must be installed within that activate environment:
   1. Psychopy: Install version 2023.1.3, as newer versions may not be compatible : pip install psychopy==2023.1.3
-  2. NumPy: Install version 1.23.5: pip install numpy==1.23.5
-  3. Verify all installed modules using: pip list
-  4. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
+  3. NumPy: Install version 1.23.5: pip install numpy==1.23.5
+  4. Verify installation of Psychopy and Numpy using: pip list
+  5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
 # Running Animations
 To run animation files, you need the module Manim. For better compatibility, it is recommended to use a separate virtual environment with a newer Python version (e.g., Python 3.11). Avoid installing Manim and Psychopy in the same environment due to dependency conflicts.
 
