@@ -1,5 +1,6 @@
 '''AUDITORY ODDBALL TASK'''
 # For further information see README.md.
+# IMPORTANT: select machine specific paths and audioDevice
 
 '''LOAD MODULES'''
 # Core libraries:
@@ -40,10 +41,11 @@ logging.basicConfig(
     filemode = 'w', # w = write, for each subject an separate log file.
     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
+# welcome print
 print('THIS IS AUDITORY ODDBALL.')
 logging.info(' THIS IS AUDITORY ODDBALL.')
 
-# Path to output data:
+# path to output data:
 path_to_data = Path("data", "auditory_oddball").resolve()
 trials_data_folder = Path(path_to_data, 'trialdata')
 eyetracking_data_folder = Path(path_to_data, 'eyetracking')
@@ -53,20 +55,20 @@ print(eyetracking_data_folder)
 logging.info(' ' f'{trials_data_folder}')
 logging.info(' ' f'{eyetracking_data_folder}')
 
-# Testmode options
+# testmode options
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
 # testmode_eeg = TRUE mimics an parallel port trigger an on-screen notation, FALSE = parallel port is available and defined, search "parallel_port_adress"
 testmode_et = True
 testmode_eeg = True
 
-# load parallel port module if not in eeg testmode
+# load parallel port module if not in eeg testmode (for sending eeg trigger)
 if not testmode_eeg:
     from psychopy import parallel
 
 # Experimental settings:
-# Input dialgue boxes are presented on external screen 1.
+# Input dialogue boxes are presented on external screen 0.
 dialog_screen = 1
-# Stimuli are presented on internal screen 0.
+# Stimuli are presented on internal screen 1.
 presentation_screen = 0
 number_of_repetitions = 20 
 number_of_repetition_standards = 1
@@ -86,27 +88,22 @@ black_slide = 'black'
 manipulation_repetition = 5 
 # Presentation duration of baseline screen, in seconds.
 baseline_duration = 5
-# The two parameter of manipulation:
-squeeze_phase_duration = 18 
-relax_phase_duration = 60 
-squeeze_ball_color = (0, 0, 255) # blue
-relax_ball_color = (50, 25, 0) # yellow
 baseline_calibration_repetition = 1 
 # After 500 ms the no_data detection warning should be displayed on the screen.
 no_data_warning_cutoff = 0.5
 # Settings are stored automatically for each trial.
 settings = {}
 
-# EEG trigger variables. 10 ms duration of trigger signal.
-pulse_duration = 0.01
+# hardware setting
+sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
+parallel_port_adress = 0x03FF8 #required for EEG triggers
+pulse_duration = 0.01 # EEG trigger variables. 10 ms duration of trigger signal.
 
-# Parallel port:
-parallel_port_adress = 0x03FF8
 
 # Presenting a dialog box. Infos are added to settings.
 settings['id'] = 123 #default testing value
-settings['group'] = ['ASD', 'TD']
-settings['luminance'] = 0
+#settings['group'] = ['ASD', 'TD'] #extra lines can pass additional info to experiment file
+#settings['luminance'] = 0 #extra lines can pass additional info to experiment file
 
 dlg = gui.DlgFromDict(settings,title='auditory oddball')
 if dlg.OK:
@@ -161,7 +158,7 @@ mon = monitors.Monitor(
 # Create display window.
 # Unit was changed to pixel so that eye trcker outputs pixel on presentation screen.
 mywin = visual.Window(
-    size = [1920,1080],
+    size = [3840,2160],
     fullscr=True,
     monitor = mon,
     color = background_color_rgb,
@@ -192,7 +189,8 @@ if not testmode_et:
     logging.info(' Serial number: ' f'{my_eyetracker.serial_number}')
     # Define a config that allow iohub to connect to the eye-tracker:
     iohub_config = {'eyetracker.hw.tobii.EyeTracker':
-        {'name': 'tracker', 'runtime_settings': {'sampling_rate': 300, }}}
+        {'name': 'tracker', 'runtime_settings': {'sampling_rate': sampling_rate, }}}
+    
 # IOHUB creates a different instance that records eye tracking data in hdf5 file saved in datastore_name:
 io = launchHubServer(**iohub_config,
                         experiment_code = str(eyetracking_data_folder),
@@ -200,9 +198,10 @@ io = launchHubServer(**iohub_config,
                         datastore_name = str(eyetracking_data_folder / fileName), #where data is stored
                         window = mywin)
 
-# Call the eyetracker device and start recording:
+# Call the eyetracker device and start recording - different instance:
 tracker = io.devices.tracker
 tracker.setRecordingState(True)
+print(tracker)
 
 # SETUP PARALLEL PORT TRIGGER
 # List position defines triger value that is sent, see function send_triger(),
@@ -422,16 +421,6 @@ def draw_nodata_info(background_color=background_color_rgb):
         height = size_fixation_cross_in_pixels)
     no_data_warning.draw()
 
-# Stimulus for manipulation:
-def draw_ball(ball_color):
-    circle1 = visual.Circle(
-        win = mywin,
-        radius = size_fixation_cross_in_pixels,
-        units = 'pix',
-        fillColor = ball_color,
-        interpolate = True)
-    circle1.draw()
-
 # Check for keypresses, used to pause and quit experiment:
 def check_keypress():
     keys = kb.getKeys(['p','escape'], waitRelease = True)
@@ -468,7 +457,6 @@ def check_nodata(gaze_position):
     else:
         nodata_boolean = False
     return nodata_boolean
-
 
 # Get gaze position and offset cutoff.
 # Then check for the offset of gaze from the center screen.
@@ -600,54 +588,22 @@ def define_ISI_interval():
     ISI = ISI/1000 #get to second format
     return ISI
 
-# Manipulation phase: Present a ball during squeeze and relax:
-def present_ball(which_phase):
-    if which_phase == 'squeeze':
-        number_of_frames = round(squeeze_phase_duration/refresh_rate)
-        for frameN in range(number_of_frames):
-            if frameN == 1:
-                timestamp = clock.getTime()
-            draw_ball(squeeze_ball_color)
-            mywin.flip()
-    if which_phase == 'relax':
-        number_of_frames = round(relax_phase_duration/refresh_rate)
-        for frameN in range(number_of_frames):
-            if frameN == 1:
-                timestamp = clock.getTime()
-            draw_ball(relax_ball_color)
-            mywin.flip()
-
-    actual_manipulation_duration = round(clock.getTime()-timestamp,3)
-    print(which_phase + " duration: ", actual_manipulation_duration)
-    logging.info(' ' f'{which_phase}' ' DURATION: ' f'{actual_manipulation_duration}')
-    return actual_manipulation_duration
-
 '''EXPERIMENTAL DESIGN'''
 # The trial handler calls the sequence and displays it randomized.
 # Loop of block is added to experiment handler.
 # Any data that is collected will be transferred to experiment handler automatically.
 phase_sequence = [
-    'instruction1',
+    'intro',
     'baseline_calibration',
     'oddball_block',
     'baseline',
-    'oddball_block_rev',
-    'baseline',
-    'instruction2',
-    'manipulation_block',
-    'baseline',
-    'oddball_block',
-    'baseline',
-    'oddball_block_rev',
-    'baseline',
-    'instruction3']
+    'outro']
 
 phase_handler = data.TrialHandler(phase_sequence,nReps = 1, method = 'sequential') 
 exp.addLoop(phase_handler) 
 
 # Global variables:
 block_counter = 0
-manipulation_trial_counter = 1
 baseline_trial_counter = 1
 
 oddball_trial_counter = 1 # trials in oddball_blocks
@@ -659,7 +615,7 @@ send_trigger('experiment_start')
 for phase in phase_handler:
     block_counter += 1
 
-    if phase == 'instruction1':
+    if phase == 'intro':
         text_1 = "Das Experiment beginnt jetzt.\nBitte bleibe still sitzen und\nschaue auf das Kreuz in der Mitte.\n\n Weiter mit der Leertaste."
         print('SHOW INSTRUCTIONS SLIDE 1')
         logging.info(' SHOW INSTRUCTION SLIDE 1')
@@ -668,16 +624,7 @@ for phase in phase_handler:
         keys = event.waitKeys(keyList = ["space"])
         exp.nextEntry()
 
-    if phase == 'instruction2':
-        text_2 = "Beim blauen Kreis drücke bitte das\nKraftmessgerät so fest du kannst.\nWährend des gelben Kreises\nkannst deine Hand entspanen.\n\nMit der Leertaste geht es weiter."
-        print('SHOW INSTRUCTIONS SLIDE 2')
-        logging.info(' SHOW INSTRUCTION SLIDE 2')
-        draw_instruction(text = text_2)
-        mywin.flip()
-        keys = event.waitKeys(keyList = ["space"])
-        exp.nextEntry
-
-    if phase == 'instruction3':
+    if phase == 'outro':
         text_3 = "Das Experiment ist jetzt beendet.\nBitte bleibe still noch sitzen."
         print('SHOW INSTRUCTIONS SLIDE 3')
         logging.info(' SHOW INSTRUCTION SLIDE 3')
@@ -779,165 +726,6 @@ for phase in phase_handler:
             trials.addData('trial_nodata_duration', nodata_duration)
 
             oddball_trial_counter += 1
-            exp.nextEntry()
-
-    if phase == 'oddball_block_rev':
-        # Sequence for trial handler with 1/5 chance for an oddball.
-        stimulus_sequence = ['standard_rev','standard_rev','standard_rev','standard_rev','oddball_rev']
-        # Define a sequence for trial handler with 3 standard stimuli.
-        standard_sequence = ['standard_rev', 'standard_rev', 'standard_rev']
-        #number_of_repetitions = round(number_of_trials/len(stimulus_sequence))
-        # Trial handler calls the stimulus_sequence and displays it randomized.
-        trials = data.TrialHandler(stimulus_sequence,nReps = number_of_repetitions, method = 'random')
-        # Trial handler for 3 standard stimuli.
-        standards = data.TrialHandler(standard_sequence, nReps = number_of_repetition_standards, method = 'sequential')
-        # Add loop of block to experiment handler. Any collected data will be transferred to experiment handler automatically.
-        exp.addLoop(trials) 
-        send_trigger('oddball_block_rev')
-        print('START OF REVERSE ODDBALL BLOCK REVERSAL')
-        logging.info(' START OF REVERSE ODDBALL BLOCK.')
-
-        # Continuing counting after last oddball_block...
-        standard_trial_counter = oddball_trial_counter
-
-        for standard in standards:
-            send_trigger('trial')
-            ISI = define_ISI_interval()
-            timestamp = time.time()
-            timestamp_exp = core.getTime()
-            timestamp_tracker = tracker.trackerTime()
-            print('NEW TRIAL')
-            logging.info(' NEW TRIAL')
-            print("ISI: ", ISI)
-            logging.info(' ISI: ' f'{ISI}')
-            print("gaze position: ",tracker.getPosition())
-            logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
-            # Stimulus presentation:
-            actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds, trial = standard)
-            send_trigger('ISI')
-            [fixcross_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(ISI)
-
-            # Save data in .csv file:
-            # Information about each phase:
-            phase_handler.addData('phase', phase)
-            phase_handler.addData('block_counter', block_counter)
-            # Information about each trial:
-            trials.addData('oddball_trial_counter', standard_trial_counter)
-            trials.addData('trial', standard) 
-            trials.addData('stimulus_duration', actual_stimulus_duration)
-            trials.addData('ISI_expected', ISI)
-            trials.addData('ISI_duration', fixcross_duration)
-            trials.addData('gaze_offset_duration', offset_duration)
-            trials.addData('trial_pause_duration', pause_duration)
-            trials.addData('trial_nodata_duration', nodata_duration)
-            trials.addData('timestamp', timestamp) 
-            trials.addData('timestamp_exp', timestamp_exp) 
-            trials.addData('timestamp_tracker', timestamp_tracker)
-
-            standard_trial_counter += 1
-            exp.nextEntry()
-        
-        # Continuing counting after last standard_block...
-        oddball_trial_counter = standard_trial_counter
-        for trial in trials:
-            send_trigger('trial')
-            ISI = define_ISI_interval() 
-            timestamp = time.time() 
-            timestamp_exp = core.getTime() 
-            timestamp_tracker = tracker.trackerTime()
-            print('NEW TRIAL')
-            logging.info(' NEW TRIAL')
-            print("ISI: ",ISI)
-            logging.info(' ISI: ' f'{ISI}')
-            print("gaze position: ",tracker.getPosition())
-            logging.info(' ISI: ' f'{tracker.getPosition()}')
-            # Stimulus presentation:
-            actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds,trial)
-            send_trigger('ISI')
-            [fixcross_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(ISI)
-
-            # Save data in .csv file:
-            # Information about each phase:
-            phase_handler.addData('phase', phase)
-            phase_handler.addData('block_counter', block_counter)
-            # Infrmation about each trial:
-            trials.addData('oddball_trial_counter',oddball_trial_counter) 
-            trials.addData('trial', trial) 
-            trials.addData('timestamp', timestamp) 
-            trials.addData('timestamp_exp', timestamp_exp) 
-            trials.addData('timestamp_tracker', timestamp_tracker) 
-            trials.addData('stimulus_duration', actual_stimulus_duration)
-            trials.addData('ISI_expected', ISI)
-            trials.addData('ISI_duration', fixcross_duration)
-            trials.addData('gaze_offset_duration', offset_duration)
-            trials.addData('trial_pause_duration', pause_duration)
-            trials.addData('trial_nodata_duration', nodata_duration)
-
-            oddball_trial_counter += 1
-            exp.nextEntry() 
-
-    if phase == 'manipulation_block':
-        # Setup experimental manipulation:
-        manipulation_sequence = ['baseline','squeeze','baseline','relax']
-        exp_manipulations = data.TrialHandler(manipulation_sequence, nReps = manipulation_repetition, method = 'sequential')
-        # Add loop of block to trial handler.
-        # Any collected data by trials will be transfered to experiment handler automatically.
-        exp.addLoop(exp_manipulations) 
-        # Onset of manipulation block:
-        send_trigger('manipulation_block')
-        print('START OF MANIPULATION PHASE')
-
-        for manipulation in exp_manipulations:
-            print('NEW MANIPULATION:' + manipulation)
-            timestamp = time.time()
-            timestamp_exp = core.getTime()
-            # Baseline presentation: Fixation_cross for 10 seconds to determine tonic pupil size.
-            if manipulation == 'baseline':
-                send_trigger('baseline')
-                [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
-                # Save data in .csv file:
-                exp_manipulations.addData('stimulus_duration', stimulus_duration)
-                exp_manipulations.addData('gaze_offset_duration', offset_duration)
-                exp_manipulations.addData('trial_pause_duration', pause_duration)
-                exp_manipulations.addData('trial_nodata_duration', nodata_duration)
-            # Manipulation relax: Yellow ball.
-            if manipulation == 'relax':
-                send_trigger('manipulation_relax')
-                actual_manipulation_duration = present_ball(manipulation)
-                exp_manipulations.addData('stimulus_duration', actual_manipulation_duration)
-            # Manipulation squeeze: Blue ball.
-            if manipulation == 'squeeze':
-                send_trigger('manipulation_squeeze')
-                actual_manipulation_duration = present_ball(manipulation)
-                text_strength = 'Gleich geht es weiter...'
-                draw_instruction(text = text_strength)
-                mywin.flip()
-                core.wait(5)
-                # Setup and presenting dialog box for hand grip strength input:
-                grip_info = {}
-                grip_info['effort_rating'] = ['high','low']
-                grip_info['grip_strength'] = int(0)
-                dlg = gui.DlgFromDict(
-                grip_info,
-                title = 'hand grip strength',
-                screen = dialog_screen)
-                dlg.addText('Fast input! - do not delay experiment')
-                # Save data from manipulation phase in .csv file:
-                exp_manipulations.addData('stimulus_duration', actual_manipulation_duration)
-                exp_manipulations.addData('effort_rating', grip_info['effort_rating'])
-                exp_manipulations.addData('grip_strength', grip_info['grip_strength'])
-
-            # Save data in .csv file:
-            # Information about each phase:
-            phase_handler.addData('phase', phase)
-            phase_handler.addData('block_counter', block_counter)
-            # Information about each trial in the manipulation block:
-            exp_manipulations.addData('manipulation_trial_counter',manipulation_trial_counter)
-            exp_manipulations.addData('trial', manipulation)
-            exp_manipulations.addData('timestamp', timestamp)
-            exp_manipulations.addData('timestamp_exp', timestamp_exp)
-
-            manipulation_trial_counter += 1
             exp.nextEntry()
 
     if phase == 'baseline':
