@@ -62,12 +62,6 @@ Monitor parameters are adapted to the presentation PC. The name is saved with ps
 * experiment screen will be FUllHD, thus testscreen is specified accordingly
 * Screen resolution is 1920/1080.
 
-## Parallel port
-send parallel port trigger: https://psychopy.org/api/parallel.html -> send trigger -> C:\Users\stimulation\AppData\Local\Programs\PsychoPy\python.exe C:\Users\stimulation\Desktop\project_py_oddball_280322\test_parallelport.py -> see: https://stackoverflow.com/questions/26762015/psychopy-sending-triggers-on-64bit-os/26889541#26889541 -> see also: https://osdoc.cogsci.nl/3.3/manual/devices/parallel/#windows-7-32-and-64-bit.
-
-*port = parallel.ParallelPort(0x03FF8)*
-**Don't quote this setting!** <br/>The correct port needs to be identified (use standalone "Parallel Port Tester programm" -> set all pins to low -> port.setData(0))
-
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
 * in case testmode = True: the mouse is used as eyetracker and data stored in hdf5 file: -> import h5py -> access data: dset1 = f['data_collection/events/eyetracker/MonocularEyeSampleEvent']
