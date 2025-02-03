@@ -9,19 +9,19 @@ This study consists of four tasks:
 
 During all tasks, pupil dilation is measured via eye tracking and parallel port triggers are sent to an EEG recording PC. Several baseline phases are used to determine tonic pupil size. 
 
-## Installation Guide for Python and Required Modules
-# Python Installation
+# Installation Guide for Python and Required Modules
+## Python Installation
 * The required Python module tobii-research is compatible only with Python 3.10. Therefore, ensure you install Python 3.10 according to your system requirements or create a virtual environment that uses Python 3.10.
 * Do not download Python from the Microsoft Store, as it is treated as an app, which can cause conflicts. Instead, download Python directly from the official website: https://www.python.org/downloads/windows/.
   * When running the installer (.exe file):
       1. Run it as Administrator.
       2. Check the box "Add PYTHON to PATH" to automatically set the environment variable: "python" command is enabled within terminal.
-# Working with Multiple Python Versions
+## Working with Multiple Python Versions
 * If you have multiple Python versions installed, you can create a virtual environment specifically for Python 3.10 in the terminal:
   * Check the Python version available: python --version
   * Create a virtual environment using Python 3.10: python3.10 -m venv environment_name
   * Activate the virtual environment: environment_name\Scripts\activate
-# Installing Required Modules
+## Installing Required Modules
  * Installation requires "Microsoft Visual C++ 14.0" bundled with "Microsoft C++ Build Tools" (Desktop Development with C++).
  * you use a virtual environment, all modules must be installed within that activate environment:
   1. Psychopy: Install version 2023.1.3, as newer versions may not be compatible : pip install psychopy==2023.1.3
@@ -29,10 +29,10 @@ During all tasks, pupil dilation is measured via eye tracking and parallel port 
   3. Tobii Pro SDK as Tobii Research Python module: pip install tobii_research
   4. Verify installation of Psychopy and Numpy using: pip list
   5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
-# Running Animations
+## Running Animations
 To run animation files, you need the module Manim. For better compatibility, it is recommended to use a separate virtual environment with a newer Python version (e.g., Python 3.11). Avoid installing Manim and Psychopy in the same environment due to dependency conflicts.
 
-# Submodule iohub
+## Submodule iohub
  * Issue: during task execution, an error in one of the module files occured prevented the recording of gaze data.
   - ERROR: KeyError: 'right_gaze_origin_in_trackbox_coordinate_system'
   - Problem Background: The KeyError occurs because the code attempts to access a non-existing key 'right_gaze_origin_in_trackbox_coordinate_system', in the gaze data returned by the Tobii eye tracker. In the tobii-research module, the correct keys are: 'right_gaze_origin_in_user_coordinate_system' instead.
@@ -70,39 +70,13 @@ Monitor parameters are adapted to the presentation PC. The name is saved with ps
 The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. In four task blocks, each including 100 trials, a frequent tone (standard) is presented with a probability of 80% while an infrequent tone of a different pitch (oddball) is presented with a probability of 20%. The pitch level indicating oddballs in the 1st task block and the 3rd task block (oddball blocks) are either 500 Hz or 750 Hz. Oddballs in the 2nd and 4th task block are of the opposite pitch (oddball blocks reverse). Three additional standard trials precede each task block.  
 
 ### Task sequence
-1. intro slide
-2. baseline calibration
-3. oddball block
-4. baseline phase
-7. outro slide
+1. baseline calibration
+2. oddball block
+3. baseline phase
 
 ## The Visual Oddball Task
 The task is used and to observe effects of task utility and stimulus salience. It contains independent manipulations of both. In four task blocks, each including 150 trials, a frequent purple circle is presented with a probability of 80% while an infrequent smaller purple circle (oddball) is presented with a probability of 20%. As in the Auditory Oddball task, three additional standard trials precede each task block. The task starts with four separate practice blocks, each containing of 13 trials, as a familiarisation. In the end, the test subjcet receives feedback aboout their winnings. 
 
-### Task sequence
-1. instruction slide 1
-2. baseline calibration
-3. instruction slide 2
-4. instruction slide practice trials
-5. baseline phase
-6. practice block 1
-7. baseline phase
-8. practice block 2
-9. baseline phase
-10. practice block 3
-11. baseline phase
-12. practice block 4
-13. instruction slide 3
-14. baseline phase
-15. oddball block 1
-16. baseline phase
-17. oddball block 2
-17. baseline phase
-18. oddball block 3
-19. baseline phase
-20. oddball block 4
-21. reward feedback
-22. instruction slide 4
 
 ### Automatic conversion of visual angle to pixels in script
 * *size_fixation_cross_in_pixels = 132*, also defines standard stimulus size and translates to 3.2 degrees visual angle on 24 inch screen with 25.59 inches screen distance (see https://elvers.us/perception/visualAngle/)
@@ -110,19 +84,33 @@ The task is used and to observe effects of task utility and stimulus salience. I
 * *low_salience_ball_size = round(0.91 * size_fixation_cross_in_pixels)* translates to 2.9 degrees visual angle on 24 inch screen with 25.59 inches screen distance.
 
 
-## Cued Visual Search Task
-# Two Versions Available
-  * cued-visual-search-cross.py - fixation cross as inter stimulus
-  * cued-visual-search-animation.py - animations as inter stimulus
+# Cued Visual Search Task
+## Two Versions Available
+  * cued-visual-search-cross.py - fixation cross as inter stimulus, curently no eye-tracking
+  * cued-visual-search-animation.py - animations as inter stimulus, currently adapted to record eye-tracking data
 
-# For the Animations
+## For the Animations
   * The animations are pre-rendered and stored in the project directory: .\Media\Videos\1080x60.
   * You need to either download the animations or clone them with the repository.
 * If you want to render the animations from the animation-cued-visual-search.py script:
   * The rendered videos will be stored in the same location (.\Media\Videos\1080p60).
   * After rendering, select the videos you want to use and rename them sequentially from 1 to 21, otherwise you need to adjust the code in the task
 
-# Before running the task
+## Before running the task
   * Create folders in your project directory if not existing data\cued_visual_search\logging_data
   * Set resolution to fit your monitor
   * Use 'escape' to abrupt the task
+
+
+# Rapid Sound Sequences
+ * File: rapid-sound-sequences.py
+ 
+## Task Description
+  * the task is designed to present a series of auditory stimuli (tones of varying frequencies) in rapid succession.The task includes four conditions: two control conditions (regular and irregular sequences) and two transition conditions (from regular to irregular and from irregular to regular).
+  
+  * Control Conditions:
+  Regular: Sounds presented in a predictable, repeating pattern.
+  Irregular: Sounds presented in a randomized pattern.
+  * Transition Conditions:
+  Regular-to-Irregular: Sequence transitions from regular to irregular patterns.
+  Irregular-to-Regular: Sequence transitions from irregular to regular patterns.
