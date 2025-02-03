@@ -3,19 +3,18 @@
 # IMPORTANT: select machine specific paths and audioDevice
 
 '''LOAD MODULES'''
-# Core libraries:
 from psychopy import visual, core, event, clock, data, gui, monitors
 import random, time, numpy
 # For controlling eye tracker and eye-tracking SDK:
-import tobii_research
+import tobii_research as tr
 from psychopy.iohub import launchHubServer
 # For getting keyboard input:
 from psychopy.hardware import keyboard
 # For playing sound:
 from psychopy import prefs
-prefs.hardware['audioLib'] = ['ptb'] #PTB described as highest accuracy sound class
-prefs.hardware['audioDevice'] = 'Kopfhörer (HyperX Virtual Surround Sound)' # define audio device - DEVICE SPECIFIC
-prefs.hardware['audioLatencyMode'] = 3 #high sound priority, low latency mode
+prefs.hardware['audioLib'] = ['ptb'] # PTB described as highest accuracy sound class
+prefs.hardware['audioDevice'] = 'Realtek HD Audio 2nd output (Realtek(R) Audio)' # define audio device - DEVICE SPECIFIC
+prefs.hardware['audioLatencyMode'] = 3 # high sound priority, low latency mode
 from psychopy import sound
 import psychtoolbox as ptb #sound processing via ptb
 # For managing paths:
@@ -49,21 +48,26 @@ logging.info(' THIS IS AUDITORY ODDBALL.')
 path_to_data = Path("data", "auditory_oddball").resolve()
 trials_data_folder = Path(path_to_data, 'trialdata')
 eyetracking_data_folder = Path(path_to_data, 'eyetracking')
+loggings_data_folder = Path(path_to_data, 'logging_data')
 
+# Create folders if they don't exist
+for folder in [trials_data_folder, eyetracking_data_folder, loggings_data_folder]:
+    folder.mkdir(parents=True, exist_ok=True)
+
+# Print paths
 print(trials_data_folder)
 print(eyetracking_data_folder)
-logging.info(' ' f'{trials_data_folder}')
-logging.info(' ' f'{eyetracking_data_folder}')
+print(loggings_data_folder)
+
+# Log paths
+logging.info(f'Trials data folder: {trials_data_folder}')
+logging.info(f'Eyetracking data folder: {eyetracking_data_folder}')
+logging.info(f'Logging data folder: {loggings_data_folder}')
 
 # testmode options
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
 # testmode_eeg = TRUE mimics an parallel port trigger an on-screen notation, FALSE = parallel port is available and defined, search "parallel_port_adress"
-testmode_et = True
-testmode_eeg = True
-
-# load parallel port module if not in eeg testmode (for sending eeg trigger)
-if not testmode_eeg:
-    from psychopy import parallel
+testmode_et = False
 
 # Experimental settings:
 # Input dialogue boxes are presented on external screen 0.
@@ -89,7 +93,7 @@ manipulation_repetition = 5
 # Presentation duration of baseline screen, in seconds.
 baseline_duration = 5
 baseline_calibration_repetition = 1 
-# After 500 ms the no_data detection warning should be displayed on the screen.
+# After 500 ms the no_data detection warning should be displayed on the screen.no_data_warning_cutoff = 0.5
 no_data_warning_cutoff = 0.5
 # Settings are stored automatically for each trial.
 settings = {}
@@ -104,16 +108,33 @@ pulse_duration = 0.01 # EEG trigger variables. 10 ms duration of trigger signal.
 settings['id'] = 123 #default testing value
 #settings['group'] = ['ASD', 'TD'] #extra lines can pass additional info to experiment file
 #settings['luminance'] = 0 #extra lines can pass additional info to experiment file
+# Create a dialog box for participant info
+exp_info = {
+    "Participant ID": "",
+    "Timepoint": ["test", "pilot", "T1", "T2", "T3"]
+}
 
-dlg = gui.DlgFromDict(settings,title='auditory oddball')
-if dlg.OK:
-    print('EXPERIMENT IS STARTED')
-    logging.info(' EXPERIMENT IS STARTED.')
-else:
-    core.quit()  # the user hit cancel so exit
+dlg = gui.DlgFromDict(
+    dictionary=exp_info,
+    title= "auditory oddball",
+    order=["Participant ID", "Timepoint"] # Order of fields
+   
+)
+if not dlg.OK:
+    logging.warning("Experiment canceled by the user.")
+    core.quit()
+
+participant_id = exp_info["Participant ID"]
+timepoint = exp_info["Timepoint"]
+
+logging.info(f"Participant ID: {participant_id}")
+logging.info(f"Timepoint: {timepoint}")
+
+selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data:
-fileName = f'auditory_{settings["id"]}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
+# participant_id and selected_timepoint come from the dialog box input
+fileName = f'auditory_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler saves experiment data automatically.
 # The dictionary "settings" is passed to the experiment handler.
@@ -151,14 +172,14 @@ if random_number >= 0.5:
 # Name is saved with PsychoPy monitor manager.
 # units (width, distance) are in cm.
 mon = monitors.Monitor(
-    name = 'LGcenter_nico_workstation',
-    width = 71,
+    name = 'Iskra_monitor_204',
+    width = 59.5,
     distance = 60)
 
 # Create display window.
 # Unit was changed to pixel so that eye trcker outputs pixel on presentation screen.
 mywin = visual.Window(
-    size = [3840,2160],
+    size = [2560,1440],
     fullscr=True,
     monitor = mon,
     color = background_color_rgb,
@@ -168,142 +189,62 @@ mywin = visual.Window(
 refresh_rate = mywin.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
-# SETUP EYETRACKING:
-# Output gazeposition is alwys centered, i.e. screen center = [0,0].
+#Setup Eye Tracking:
 if testmode_et:
-    logging.info(' TESTMODE = TRUE')
-    print('mouse is used to mimick eyetracker...')
-    iohub_config = {'eyetracker.hw.mouse.EyeTracker': {'name': 'tracker'}}
-if not testmode_et:
+    logging.info('TESTMODE = TRUE')
+    print('Mouse is used to mimic eye tracker...')
+    iohub_config = {
+        'eyetracker.hw.mouse.EyeTracker': {'name': 'tracker'}
+    }
+else:
     logging.info('TESTMODE = FALSE')
-    # Search for eye tracker:
-    found_eyetrackers = tobii_research.find_all_eyetrackers()
-    my_eyetracker = found_eyetrackers[0]
-    print("Address: " + my_eyetracker.address)
-    logging.info(' ADDRESS: ' f'{my_eyetracker.address}')
-    print("Model: " + my_eyetracker.model)
-    logging.info(' Model: ' f'{my_eyetracker.model}')
-    print("Name (It's OK if this is empty): " + my_eyetracker.device_name)
-    logging.info(' Name (It is OK if this is empty): ' f'{my_eyetracker.device_name}')
-    print("Serial number: " + my_eyetracker.serial_number)
-    logging.info(' Serial number: ' f'{my_eyetracker.serial_number}')
-    # Define a config that allow iohub to connect to the eye-tracker:
-    iohub_config = {'eyetracker.hw.tobii.EyeTracker':
-        {'name': 'tracker', 'runtime_settings': {'sampling_rate': sampling_rate, }}}
     
-# IOHUB creates a different instance that records eye tracking data in hdf5 file saved in datastore_name:
-io = launchHubServer(**iohub_config,
-                        experiment_code = str(eyetracking_data_folder),
-                        session_code = fileName,
-                        datastore_name = str(eyetracking_data_folder / fileName), #where data is stored
-                        window = mywin)
+    # Search for eye trackers:
+    found_eyetrackers = tr.find_all_eyetrackers()
+    if not found_eyetrackers:
+        raise RuntimeError("No eye tracker found. Please check the connection.")
+    
+    # Select the first available eye tracker:
+    my_eyetracker = found_eyetrackers[0]
+    sampling_rate = my_eyetracker.get_all_gaze_output_frequencies()[0]
+    
+    # Log eye tracker details:
+    print(f"Tracker connected:\n"
+          f"Address: {my_eyetracker.address}\n"
+          f"Model: {my_eyetracker.model}\n"
+          f"Sampling Rates: {my_eyetracker.get_all_gaze_output_frequencies()}")
+    logging.info(f"ADDRESS: {my_eyetracker.address}")
+    logging.info(f"MODEL: {my_eyetracker.model}")
+    logging.info(f"SERIAL NUMBER: {my_eyetracker.serial_number}")
 
-# Call the eyetracker device and start recording - different instance:
+    # Define ioHub configuration:
+    iohub_config = {
+        'eyetracker.hw.tobii.EyeTracker': {
+            'name': 'tracker',
+            'runtime_settings': {'sampling_rate': sampling_rate}
+        }
+    }
+
+# Launch ioHub server:
+io = launchHubServer(
+    **iohub_config,
+    experiment_code=str(eyetracking_data_folder),
+    session_code=fileName,
+    datastore_name=str(eyetracking_data_folder / fileName),
+    window=mywin
+)
+
+# Initialize tracker
 tracker = io.devices.tracker
+if not tracker:
+    raise RuntimeError("Tracker initialization failed. Please check your eye tracker configuration.")
+
+# Start eye tracker recording
+print("Tracker successfully initialized!")
 tracker.setRecordingState(True)
-print(tracker)
-
-# SETUP PARALLEL PORT TRIGGER
-# List position defines triger value that is sent, see function send_triger(),
-# i. e. list position 2 will send a trigger with value "S2". 
-trigger_name_list = ['PLACEHOLDER', #0
-                     'trial', #1 -
-                     'oddball_750Hz', #2 -
-                     'oddball_500Hz', #3 -
-                     'standard_750Hz', #4 -
-                     'standard_500Hz', #5 -
-                     'oddball_rev_750Hz', #6 -
-                     'oddball_rev_500Hz', #7 -
-                     'standard_rev_750Hz', #8 -
-                     'standard_rev_500Hz', #9 -
-                     'ISI', #10 -
-                     'baseline', #22 -
-                     'manipulation_squeeze', #12 -
-                     'manipulation_relax', #13 -
-                     'experiment_start', #14 -
-                     'experiment_end', #15 -
-                     'pause_initiated', #16 -
-                     'pause_ended', #17 -
-                     'experiment_aborted', #18 -
-                     'baseline_calibration', #19 -
-                     'baseline_whiteslide', #20 -
-                     'baseline_blackslide', #21 -
-                     'oddball_block', #22 -
-                     'manipulation_block', #23 -
-                     'oddball_block_rev'] #24 -
-
-print(trigger_name_list)
-
-# Find a parallel port:
-if not testmode_eeg:
-    port = parallel.ParallelPort(parallel_port_adress)
-    # Set all pins to low, otherwise no triggers will be sent.
-    port.setData(0) 
 
 # SETUP KEYBORD
 kb = keyboard.Keyboard()
-
-'''FUNCTIONS'''
-# Send a trigger to eeg recording PC via parallel port:
-def send_trigger(trigger_name):
-
-    # INFO
-    ## Tested definition - brian vision recorder - other triggers are created by addition of pins:
-    ## pin 2 - S1
-    ## pin 3 - S2
-    ## pin 4 - S4
-    ## pin 5 - S8
-    ## pin 6 - S16
-    ## pin 7 - S32
-    ## pin 8 - S64
-    ## pin 9 - S128
-
-    trigger_name_found = False
-    for i in trigger_name_list:
-        if i == trigger_name:
-            trigger_value = trigger_name_list.index(trigger_name)
-            # Translates trigger integer value to byte value (binary of length 8 = able to represent values 1-256)
-            # e.g. list position 3 -> trigger value "3" -> trigger_byte "00000011":
-            trigger_byte = f'{trigger_value:08b}'
-
-            #set pins according to trigger byte
-            if not testmode_eeg:
-                port.setPin(2, int(trigger_byte[7]))
-                port.setPin(3, int(trigger_byte[6]))
-                port.setPin(4, int(trigger_byte[5]))
-                port.setPin(5, int(trigger_byte[4]))
-                port.setPin(6, int(trigger_byte[3]))
-                port.setPin(7, int(trigger_byte[2]))
-                port.setPin(8, int(trigger_byte[1]))
-                port.setPin(9, int(trigger_byte[0]))
-
-                # Wait for pulse duration:
-                time.sleep(pulse_duration)
-                # Set all pins back to zero:
-                port.setData(0)
-
-            if testmode_eeg:
-                print('sent DUMMY trigger S' + str(trigger_value))
-                logging.info(' DUMMY TRIGGER WAS SENT: S' f'{trigger_value}')
-            trigger_name_found = True
-    if not trigger_name_found:
-        print('trigger name is not defined: ' + trigger_name)
-        logging.info(' TRIGGER NAME IS NOT DEFINED: ' f'{trigger_name}')
-
-# Draw instruction slides:
-def draw_instruction(text, background_color = background_color_rgb):
-    if background_color is not background_color_rgb:
-        background_rect = visual.Rect(win=mywin, size=mywin.size, fillColor= background_color)
-        background_rect.draw()
-
-    instruction_slide = visual.TextStim(
-        win = mywin,
-        text = text,
-        color = 'black',
-        units = 'pix',
-        wrapWidth = 900,
-        height = size_fixation_cross_in_pixels)
-    instruction_slide.draw()
 
 # Draw a fixation cross from lines:
 def draw_fixcross(background_color=background_color_rgb, cross_color = 'black'):
@@ -404,50 +345,34 @@ def draw_gazedirect(background_color=background_color_rgb):
 
     rect1.draw()
 
-# Feedback indicating that no eyes are currently detected thus eye tracking data is NA:
-def draw_nodata_info(background_color=background_color_rgb):
-    # Adapt background according to provided "background_color":
-    if background_color is not background_color_rgb:
-        background_rect = visual.Rect(
-            win = mywin,
-            size = mywin.size,
-            fillColor = background_color)
-        background_rect.draw()
-    no_data_warning = visual.TextStim(
-        win = mywin,
-        text = 'AUGEN NICHT ERKANNT!',
-        color = 'red',
-        units = 'pix',
-        height = size_fixation_cross_in_pixels)
-    no_data_warning.draw()
-
 # Check for keypresses, used to pause and quit experiment:
 def check_keypress():
     keys = kb.getKeys(['p','escape'], waitRelease = True)
     timestamp_keypress = clock.getTime()
 
+    # Extract key names from the KeyPress objects and print them
+    key_names = [key.name for key in keys]
+    #print(f"Keys pressed: {key_names}")  # Debug: print the key names
+
     if 'escape' in keys:
-        send_trigger('pause_initiated')
         dlg = gui.Dlg(title='Quit?', labelButtonOK=' OK ', labelButtonCancel=' Cancel ')
         dlg.addText('Do you really want to quit? - Then press OK')
-        ok_data = dlg.show()  # show dialog and wait for OK or Cancel
+        dlg.show()  # show dialog and wait for OK or Cancel
         if dlg.OK:  # or if ok_data is not None
-            send_trigger('experiment_aborted')
             print('EXPERIMENT ABORTED!')
             core.quit()
         else:
-            send_trigger('pause_ended')
             print('Experiment continues...')
         pause_time = clock.getTime() - timestamp_keypress
+
     elif 'p' in keys:
-        send_trigger('pause_initiated')
         dlg = gui.Dlg(title='Pause', labelButtonOK='Continue')
         dlg.addText('Experiment is paused - Press Continue, when ready')
-        ok_data = dlg.show()  # show dialog and wait for OK
+        dlg.show()  # show dialog and wait for OK
         pause_time = clock.getTime() - timestamp_keypress
-        send_trigger('pause_ended')
     else:
         pause_time = 0
+        # Show the experiment window again
     pause_time = round(pause_time,3)
     return pause_time
 
@@ -490,8 +415,6 @@ def fixcross_gazecontingent(duration_in_seconds, background_color = background_c
             nodata_current_duration = 0
 
             while check_nodata(gaze_position):
-                if nodata_current_duration > no_data_warning_cutoff: #ensure that warning is not presented after every eye blink
-                    draw_nodata_info(background_color)
                 mywin.flip() #wait for monitor refresh time
                 nodata_duration += refresh_rate
                 nodata_current_duration += refresh_rate
@@ -534,33 +457,25 @@ def fixcross_gazecontingent(duration_in_seconds, background_color = background_c
 def present_stimulus(duration_in_seconds, trial):
     nextFlip = mywin.getFutureFlipTime(clock='ptb') # sync sound start with next screen refresh
     if trial == 'oddball':
-        if sound_oddball == sound_one_in_Hz:
-            send_trigger('oddball_500Hz')
-        if sound_oddball == sound_two_in_Hz:
-            send_trigger('oddball_750Hz')
-        logging.info(' ODDBALL WAS PLAYED IN: ' f'{sound_oddball}' 'Hz')
-        oddball_sound.play(when=nextFlip)
+        if sound_oddball == sound_one_in_Hz or sound_oddball == sound_two_in_Hz:
+            logging.info(f' ODDBALL WAS PLAYED IN: {sound_oddball} Hz')
+            oddball_sound.play(when=nextFlip)
+
     if trial == 'standard':
-        if sound_standard == sound_one_in_Hz:
-            send_trigger('standard_500Hz')
-        if sound_standard == sound_two_in_Hz:
-            send_trigger('standard_750Hz')
-        logging.info(' STANDARD WAS PLAYED IN: ' f'{sound_standard}' 'Hz')
-        standard_sound.play(when=nextFlip)
+        if sound_standard == sound_one_in_Hz or sound_standard == sound_two_in_Hz:
+            logging.info(f' STANDARD WAS PLAYED IN: {sound_standard} Hz')
+            standard_sound.play(when=nextFlip)
+
     if trial == 'oddball_rev':
-        if sound_oddball == sound_two_in_Hz:
-            send_trigger('oddball_rev_500Hz')
-        if sound_oddball == sound_one_in_Hz:
-            send_trigger('oddball_rev_750Hz')
-        logging.info(' ODDBALL_REV WAS PLAYED IN: ' f'{sound_standard}' 'Hz')
-        standard_sound.play(when=nextFlip)
+        if sound_oddball == sound_two_in_Hz or sound_oddball == sound_one_in_Hz:
+            logging.info(f' ODDBALL_REV WAS PLAYED IN: {sound_standard} Hz')
+            standard_sound.play(when=nextFlip)
+
     if trial == 'standard_rev':
-        if sound_standard == sound_two_in_Hz:
-            send_trigger('standard_rev_500Hz')
-        if sound_standard == sound_one_in_Hz:
-            send_trigger('standard_rev_750Hz')
-        logging.info(' STANDARD_REV WAS PLAYED IN: ' f'{sound_oddball}' 'Hz')
-        oddball_sound.play(when=nextFlip)
+        if sound_standard == sound_two_in_Hz or sound_standard == sound_one_in_Hz:
+            logging.info(f' STANDARD_REV WAS PLAYED IN: {sound_oddball} Hz')
+            oddball_sound.play(when=nextFlip)
+
     number_of_frames = round(duration_in_seconds/refresh_rate) 
     # Present cross for number of frames:
     timestamp = clock.getTime()
@@ -593,11 +508,9 @@ def define_ISI_interval():
 # Loop of block is added to experiment handler.
 # Any data that is collected will be transferred to experiment handler automatically.
 phase_sequence = [
-    'intro',
     'baseline_calibration',
     'oddball_block',
-    'baseline',
-    'outro']
+    'baseline']
 
 phase_handler = data.TrialHandler(phase_sequence,nReps = 1, method = 'sequential') 
 exp.addLoop(phase_handler) 
@@ -609,34 +522,13 @@ baseline_trial_counter = 1
 oddball_trial_counter = 1 # trials in oddball_blocks
 standard_trial_counter = 1 #trials in oddball_blocks
 
-# Send trigger:
-send_trigger('experiment_start')
-
 for phase in phase_handler:
-    block_counter += 1
-
-    if phase == 'intro':
-        text_1 = "Das Experiment beginnt jetzt.\nBitte bleibe still sitzen und\nschaue auf das Kreuz in der Mitte.\n\n Weiter mit der Leertaste."
-        print('SHOW INSTRUCTIONS SLIDE 1')
-        logging.info(' SHOW INSTRUCTION SLIDE 1')
-        draw_instruction(text = text_1)
-        mywin.flip()
-        keys = event.waitKeys(keyList = ["space"])
-        exp.nextEntry()
-
-    if phase == 'outro':
-        text_3 = "Das Experiment ist jetzt beendet.\nBitte bleibe still noch sitzen."
-        print('SHOW INSTRUCTIONS SLIDE 3')
-        logging.info(' SHOW INSTRUCTION SLIDE 3')
-        draw_instruction(text = text_3)
-        mywin.flip()
-        keys = event.waitKeys(keyList = ["space"])
-        exp.nextEntry
+    block_counter += 1 
 
     if phase == 'oddball_block':
         # Sequence for trial handler with 1/5 chance for an oddball.
         stimulus_sequence = ['standard','standard','standard','standard','oddball'] 
-        # Define a sequence for trial handler with 3 standard stimuli.
+        # Define a seq uence for trial handler with 3 standard stimuli.
         standard_sequence = ['standard', 'standard', 'standard']
         # Trial handler calls the stimulus_sequence and displays it randomized.
         trials = data.TrialHandler(stimulus_sequence, nReps = number_of_repetitions, method = 'random')
@@ -644,7 +536,6 @@ for phase in phase_handler:
         standards = data.TrialHandler(standard_sequence, nReps = number_of_repetition_standards, method = 'sequential')
         # Add loop of block to experiment handler. Any collected data will be transferred to experiment handler automatically.
         exp.addLoop(trials)
-        send_trigger('oddball_block')
         print('START OF ODDBALL BLOCK')
         logging.info(' START OF ODDBALL BLOCK.')
 
@@ -652,7 +543,6 @@ for phase in phase_handler:
         standard_trial_counter = oddball_trial_counter
         
         for standard in standards:
-            send_trigger('trial')
             ISI = define_ISI_interval()
             timestamp = time.time()
             timestamp_exp = core.getTime()
@@ -665,7 +555,6 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
             # Stimulus presentation:
             actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds, trial = standard)
-            send_trigger('ISI')
             [fixcross_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(ISI)
 
             # Save data in .csv file:
@@ -692,7 +581,6 @@ for phase in phase_handler:
         oddball_trial_counter = standard_trial_counter
 
         for trial in trials:
-            send_trigger('trial')
             ISI = define_ISI_interval() 
             timestamp = time.time() 
             timestamp_exp = core.getTime() 
@@ -705,7 +593,6 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
             # Stimulus presentation:
             actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds, trial)
-            send_trigger('ISI')
             [fixcross_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(ISI)
 
             # Save data in .csv file:
@@ -729,7 +616,6 @@ for phase in phase_handler:
             exp.nextEntry()
 
     if phase == 'baseline':
-        send_trigger('baseline')
         print('START OF BASELINE PHASE')
         logging.info(' START OF BASELINE PHASE')
         timestamp = time.time() 
@@ -761,7 +647,6 @@ for phase in phase_handler:
         baseline_calibration_repetition = baseline_calibration_repetition
         exp_baseline_calibration = data.TrialHandler(baseline_sequence,nReps = baseline_calibration_repetition, method='sequential') 
         exp.addLoop(exp_baseline_calibration) 
-        send_trigger('baseline_calibration')
         print('START OF BASELINE CALIBRATION PHASE')
         logging.info(' START OF BASELINE CALIBRATION PHASE')
 
@@ -769,7 +654,6 @@ for phase in phase_handler:
             if baseline_trial == 'baseline':
                 timestamp = time.time() 
                 timestamp_exp = core.getTime()
-                send_trigger('baseline')
                 [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
 
                 # Save data in .csv file:
@@ -788,11 +672,11 @@ for phase in phase_handler:
 
                 baseline_trial_counter += 1
                 exp.nextEntry()
+
             # Present baseline with white background:
             if baseline_trial == 'baseline_whiteslide':
                 timestamp = time.time() 
                 timestamp_exp = core.getTime()
-                send_trigger('baseline_whiteslide')
                 [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration, background_color = white_slide)
 
                 # Save data in .csv file:
@@ -815,7 +699,6 @@ for phase in phase_handler:
                 timestamp = time.time() 
                 timestamp_exp = core.getTime()
                 # Present baseline with black background:
-                send_trigger('baseline_blackslide')
                 [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration, background_color = black_slide, cross_color = 'grey')
 
                 # Save data in .csv file:
@@ -834,10 +717,16 @@ for phase in phase_handler:
 
                 exp.nextEntry()
 
+   # logging.info(f"Saving data to: {trials_data_folder / fileName}")
+   # exp.saveAsWideText(str(trials_data_folder / fileName), delim=",")   
+
+    
+print("Trial data in phase_handler:", phase_handler.trialList)
+# Explicitly save after the data is logged
+
 
 '''WRAP UP AND CLOSE'''
 # Send trigger that experiment has ended:
-send_trigger('experiment_end')
 print('EXPERIMENT ENDED')
 logging.info(' EXPERIMENT ENDED.')
 # Close reading from eyetracker:
