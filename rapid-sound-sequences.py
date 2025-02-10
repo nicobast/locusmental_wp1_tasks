@@ -13,6 +13,7 @@ from pathlib import Path
 import logging
 from datetime import datetime
 import os
+import traceback
 
 # Setup logging:
 current_datetime = datetime.now()
@@ -34,9 +35,11 @@ path_to_data = Path( "data", "rapid-sound-sequences").resolve()
 trials_data_folder = Path(path_to_data, 'trialdata')
 eyetracking_data_folder = Path(path_to_data, 'eyetracking')
 loggings_data_folder = Path(path_to_data, 'logging_data')
+
 print(trials_data_folder)
 print(eyetracking_data_folder)
 print(loggings_data_folder)
+
 logging.info(f'{trials_data_folder}')
 logging.info(f'{eyetracking_data_folder}')
 logging.info(f'{loggings_data_folder}')
@@ -68,7 +71,7 @@ fileName = f'rapid_sound_sequences{exp_info["Participant ID"]}_{timepoint}_{data
 
 # testmode options
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
-testmode_et = False
+testmode_et = True
 sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
 background_color_rgb = "#666666"
 size_fixation_cross_in_pixels = 60
@@ -364,7 +367,7 @@ CONTROL_TRIALS = 10
 TRANSITION_TRIALS = 15
 TOTAL_TRIALS = CONTROL_TRIALS * 2 + TRANSITION_TRIALS * 2
 INTER_TRIAL_INTERVAL = 2
-REFRESH_RATE = 60
+#REFRESH_RATE = 60
 
 # Generate frequency pool
 frequency_pool = list(np.logspace(np.log10(MIN_FREQ), np.log10(MAX_FREQ), POOL_SIZE))
@@ -381,7 +384,7 @@ fixation = visual.ShapeStim(
 def generate_tone(frequency):
     return sound.Sound(value=frequency, secs=DURATION_TONE, stereo=True)
 
-def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", trial_num=0):
+def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", trial_num=0):# trial_num is assigned dynamically in the experiment run later
     """
     Play a sequence of tones for a specific number of repetitions.
     """
@@ -418,7 +421,7 @@ def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", tri
         tone.play(when=play_time)
     
     # Draw fixation for the total duration
-    total_frames = int(total_duration * REFRESH_RATE)
+    total_frames = int(total_duration / refresh_rate)
     for frame in range(total_frames):
         fixation.draw()
         win.flip()
@@ -473,85 +476,98 @@ def present_trial(condition, frequency_pool, trial_num):
         sequence2 = generate_sequence(frequency_pool, 10, with_replacement=False)
         return play_tone_sequence(sequence2, 6, shuffle=False, name="RAND20-REG10 (REG10 part)", trial_num=trial_num)
 
-trial_counter = 0
-
+# A trial contains fixation cross, followed by a sequence of tones
 def run_experiment():
-    trial_order = random.sample(
-        ["REG10"] * CONTROL_TRIALS +
-        ["RAND20"] * CONTROL_TRIALS +
-        ["REG10-RAND20"] * TRANSITION_TRIALS +
-        ["RAND20-REG10"] * TRANSITION_TRIALS,
-        TOTAL_TRIALS
-    )
-    
+    pause_duration= 0
+
+    trial_order = [
+        {"condition": "REG10", "trial_num": i} for i in range(CONTROL_TRIALS)
+    ] + [
+        {"condition": "RAND20", "trial_num": i} for i in range(CONTROL_TRIALS)
+    ] + [
+        {"condition": "REG10-RAND20", "trial_num": i} for i in range(TRANSITION_TRIALS)
+    ] + [
+        {"condition": "RAND20-REG10", "trial_num": i} for i in range(TRANSITION_TRIALS)
+    ]
+
+    random.shuffle(trial_order)  # Shuffle all trials to ensure randomness
+
     print("Starting Experiment")
     start_time = core.getTime()
     
-    # **Start Eye-tracking Recording**
+    # **Start Eye-tracking Recording**,
     tracker.setRecordingState(True)  
     print("Eye-tracking recording started")
 
+    trials = data.TrialHandler(trialList=trial_order, method='sequential', nReps=1, extraInfo=exp_info)
+    exp.addLoop(trials)
+
     try:
-        for trial_num, condition in enumerate(trial_order, start=1):
+        for trial in trials:
+            condition = trial["condition"]
+            trial_num = trial["trial_num"]
+
             trial_start_time = core.getTime()
             print(f"\n=== Trial {trial_num}: {condition} ===")
-            
-            # **Check for pause or quit before trial begins**
-            pause_duration = 0
-
-            # **Trial loop that ensures gaze contingency is checked per frame**
-            trial_finished = False
-            while not trial_finished:
+            try:
+                # **ITI - Inter-Trial Interval**
+                iti_frames = int(INTER_TRIAL_INTERVAL / refresh_rate)
+                print(f"ITI Frames: {iti_frames}")  # Debugging: Print ITI frames
+                isi_start_time = core.getTime() 
+                for _ in range(iti_frames):
+                    fixation.draw()
+                    win.flip()
                 
-                if present_trial(condition, frequency_pool, trial_num):  
-                    print("Experiment terminated by user")
-                    break  # Exit experiment if user quits
-                # **Present the trial with gaze contingency active**
-                actual_duration, gaze_offset, pause_duration, nodata_duration = rapidsequences_gazecontingent(
-                    fixation, INTER_TRIAL_INTERVAL
+                actual_rss_duration, gaze_offset_duration, pause_duration, nodata_duration = rapidsequences_gazecontingent(
+                rss_object=fixation,  
+                duration_in_seconds=INTER_TRIAL_INTERVAL,  
+                background_color = background_color_rgb   
                 )
+                
+                isi_end_time = core.getTime()  # Get end time after ISI
+                iti_actual_duration = round(isi_end_time - isi_start_time,3)
+                print(f"Inter Stimulus Interval, Duration: {iti_actual_duration}")
+                print(f"ISI Expected Duration: {INTER_TRIAL_INTERVAL}")
 
-                # **Check for pause or quit before proceeding**
+                print(f"Presenting trial {trial_num} with condition: {condition}")
+
+                stimulus_start_time = core.getTime()  # Record start time of the stimulus
+                present_trial(condition, frequency_pool, trial_num)
+                stimulus_end_time = core.getTime()  # Record end time of the stimulus
+                stimulus_duration = round(stimulus_end_time - stimulus_start_time, 3)
+                
                 pause_duration += check_keypress()
 
-                # **If gaze was offset, restart the trial**
-                if gaze_offset > 0 or nodata_duration > 0:
-                    print("Gaze lost! Restarting trial...")
-                    continue  # Restart the loop (replays the trial)
-                else:
-                    trial_finished = True  # Exit loop if trial completes correctly
-
-            # **ITI - Inter-Trial Interval**
-            iti_frames = int(INTER_TRIAL_INTERVAL * REFRESH_RATE)
-            for _ in range(iti_frames):
-                fixation.draw()
-                win.flip()
-                pause_duration += check_keypress()  # Allow pausing during ITI
-
+            except Exception as e:
+                print(f"Error during trial {trial_num}: {e}")
+                traceback.print_exc()
+                continue  # Skip to the next trial  
+            
             # **Log Trial Data**
             trial_end_time = core.getTime()
             trial_duration = round(trial_end_time - trial_start_time, 3)
 
-            trials.addData('trial_start_time', trial_start_time)
-            trials.addData('trial_end_time', trial_end_time)
-            trials.addData("Trial", trial_num)
-            trials.addData("Condition", condition)
-            trials.addData("Stimulus_Duration", actual_duration)
-            trials.addData("Gaze_Offset_Duration", gaze_offset)
-            trials.addData("No_Data_Duration", nodata_duration)
-            trials.addData("Pause_Duration", pause_duration)
-            trials.addData("Trial_Duration", trial_duration)
-            trials.addData("ITI", INTER_TRIAL_INTERVAL)
-            trials.nextEntry()
+            trials.addData('trial_start_time', trial_start_time) # from the trial
+            trials.addData('trial_end_time', trial_end_time) #  from the trial
+            trials.addData("Trial", trial_num) # from the trial, trial_order
+            trials.addData("Condition", condition) # from the trial
+            trials.addData("Stimulus_Duration", stimulus_duration) # calculated within the trial
+            trials.addData("Gaze_Offset_Duration", gaze_offset_duration)   # from gazecontingent function
+            trials.addData("No_Data_Duration", nodata_duration) #from gazecontingent function
+            trials.addData("Pause_Duration", pause_duration) # from gazecontingent function
+            trials.addData("Trial_Duration", trial_duration) # calculated within the trial
+            trials.addData("ISI", INTER_TRIAL_INTERVAL) # from the constants
+            trials.addData('ISI Actual Duration', iti_actual_duration) # calculated within the trial
+            trials.addData("ISI_Duration", actual_rss_duration) #   from gazecontingent function, containing fixcorss presentation, gaze_offset_duration, no_data_duration, pause_duration
 
-            # Increment trial counter
-            trial_counter += 1
+            exp.nextEntry()
 
         print("\nExperiment Completed")
         print(f"Total duration: {core.getTime() - start_time:.2f} seconds")
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        traceback.print_exc()
     finally:
          # Save and close ExperimentHandler
         trials.saveAsExcel(fileName, sheetName='trials', appendFile=True)
