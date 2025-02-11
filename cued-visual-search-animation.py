@@ -36,9 +36,11 @@ path_to_data = Path( "data", "cued_visual_search").resolve()
 trials_data_folder = Path(path_to_data, 'trialdata')
 eyetracking_data_folder = Path(path_to_data, 'eyetracking')
 loggings_data_folder = Path(path_to_data, 'logging_data')
+
 print(trials_data_folder)
 print(eyetracking_data_folder)
 print(loggings_data_folder)
+
 logging.info(f'{trials_data_folder}')
 logging.info(f'{eyetracking_data_folder}')
 logging.info(f'{loggings_data_folder}')
@@ -378,7 +380,7 @@ num_trials = 30
 
 
 # Randomly, when i have more animations
-animation_files = [f"media/videos/1080p60/{i}.mp4" for i in range(1, 21)]
+animation_files = [f"media/videos/1080p60/{i}.mp4" for i in range(1, 18)]
 
 # Set frame duration based on 60Hz refresh rate
 frame_duration = 1.0/60.0  # 16.67ms per frame
@@ -389,15 +391,126 @@ trial_counter = 0
 
 # Trial loop
 for trial in range(num_trials):
+    pause_duration= 0
+    nodata_visual_search = 0
     print(f"Starting trial {trial + 1}")
-    
-    stimulus_start_time = core.getTime()  # Record the start time
 
-    # Present circles for 1.5 seconds (90 frames at 60Hz)
+    trial_start_time = core.getTime()
+    trials = data.TrialHandler(trialList=None, method='sequential', nReps=1, extraInfo=exp_info)
+    exp.addLoop(trials)
+
+    # --- PHASE 1: Play Fixation Animation (Start of Trial) ---
+    print(f"Trial {trial + 1}: Loading animation")
+    start_time =core.getTime()
+
+    try:
+        fixation_animation = visual.MovieStim(
+            win=win,
+            filename=random.choice(animation_files),
+            loop=False,
+            noAudio=True
+        )
+
+        video_width, video_height = 1920, 1080
+        # Set the position to center the video and ensure the original size
+        fixation_animation.pos = (0, 0)
+        fixation_animation.size = (video_width, video_height)
+
+        print(f"Trial {trial + 1}: Starting animation")
+
+        animation_start_time = core.getTime()
+        animation_timeout = 2.0  # Max 2 seconds
+        fixation_animation.play()
+
+        actual_stimulus_duration, gaze_offset_duration, pause_duration, nodata_duration = oddball_gazecontingent(
+            fixation_animation, 2.0, background_color_rgb
+        )
+
+        while (fixation_animation.status != visual.FINISHED and 
+               core.getTime() - animation_start_time < animation_timeout):
+            if hasattr(fixation_animation, '_player') and fixation_animation._player:
+                fixation_animation.draw()
+            else:
+                print(f"Trial {trial + 1}: Animation player not initialized")
+                break
+        
+        animation_duration= core.getTime() - animation_start_time
+        print(f"Trial {trial + 1}: Animation loop completed in {animation_duration:.3f} seconds")
+        
+        # Explicit cleanup
+        try:
+            fixation_animation.stop()
+        except Exception as e:
+            print(f"Trial {trial + 1}: Error stopping animation: {e}")
+
+        try:
+            del fixation_animation
+        except Exception as e:
+            print(f"Trial {trial + 1}: Error deleting animation: {e}")
+
+    except Exception as e:
+        print(f"Trial {trial + 1}: Animation error: {e}")
+
+    # Multiple screen clears before the next phase
+    for _ in range(3):
+        win.flip()
+
+    # --- PHASE 2: Beep Phase ---
+    print(f"Trial {trial + 1}: Starting beep phase")
+    beep_phase_start_time = core.getTime()
+
+    nodata_beep_interval = 0  # Track no data during beep
+
+    auditory_cue = random.random() < 0.5
+    print(f"Trial {trial + 1}: Beep {'Played' if auditory_cue else 'Not Played'}")
+
+    if auditory_cue:
+        delay_frames = int(random.uniform(0, 0.1) / frame_duration)
+        beep_frames = int(random.uniform(0.2, 0.3) / frame_duration)
+        total_frames = int(0.4 / frame_duration)
+        remaining_frames = total_frames - (delay_frames + beep_frames)
+
+        expected_beep_duration = beep_frames * frame_duration
+
+        # Delay phase
+        for frame in range(delay_frames):
+            if check_nodata(tracker.getPosition()):
+                nodata_beep_interval += frame_duration
+            win.flip()
+
+        # Play beep
+        beep_start_time = core.getTime()
+        next_flip = win.getFutureFlipTime(clock='ptb')
+        beep.play(when=next_flip)
+        for frame in range(beep_frames):
+            if check_nodata(tracker.getPosition()):
+                nodata_beep_interval += frame_duration
+            win.flip()
+        beep.stop()
+
+        beep_duration= round(core.getTime() - beep_start_time, 3)
+
+        # Remaining time after beep
+        for frame in range(remaining_frames):
+            if check_nodata(tracker.getPosition()):
+                nodata_beep_interval += frame_duration
+            win.flip()
+
+    else:
+        for frame in range(int(0.4 / frame_duration)):  # No beep - just wait 400ms
+            if check_nodata(tracker.getPosition()):
+                nodata_beep_interval += frame_duration
+            win.flip()
+    
+    beep_phase_duration = round(core.getTime() - beep_phase_start_time, 3)
+    print(f"Trial {trial + 1}: No data during beep interval = {nodata_beep_interval:.3f} seconds")
+    print(f"Trial {trial + 1}: Beep phase completed in {beep_phase_duration:.3f} seconds")
+    print(f"Trial {trial + 1}: Beep duration = {beep_duration:.3f} seconds")
+
+    # ---  PHASE 3: Visual Search (Target Stimulus) ---
     base_color = random.choice(["red", "yellow", "#00FF00"])
     odd_color = random.choice([c for c in ["red", "yellow", "#00FF00"] if c != base_color])
 
-    # Randomize circle colors and positions
     circle_colors = [base_color] * 4
     odd_index = random.randint(0, 3)
     circle_colors[odd_index] = odd_color
@@ -405,174 +518,56 @@ for trial in range(num_trials):
     for circle, color in zip(circles, circle_colors):
         circle.fillColor = color
 
-    # Display circles with gaze contingency
-    stimulus_start_time = core.getTime()
-    gaze_offset_detected = False
-    gaze_offset_duration = 0
-    while core.getTime() - stimulus_start_time < 1.5:  # Show circles for 1.5 seconds
-        # Check for gaze position
-        gaze_position = tracker.getPosition()
-        if check_nodata(gaze_position):
-            print("Warning: No eyes detected")
-        elif check_gaze_offset(gaze_position):
-            # If gaze is offset, interrupt stimulus and show indicator
-            print("Gaze offset detected!")
-            gaze_offset_detected = True
-            offset_start_time = core.getTime()
-            while check_gaze_offset(gaze_position):  # Wait until gaze returns
-                draw_gazedirect(background_color_rgb)
-                win.flip()
-                gaze_position = tracker.getPosition()
-                if check_nodata(gaze_position):
-                    break  # Handle "no data" situation if needed
-            gaze_offset_duration += core.getTime() - offset_start_time
-        else:
-            # Draw circles
-            for circle in circles:
-                circle.draw()
-            win.flip()
-        
-        # Allow exit with escape key
-        if event.getKeys(keyList=['escape']):
-            win.close()
-            core.quit()
+    print(f"Trial {trial + 1}: Displaying circles")
 
-    # Log gaze offset duration
-    print(f"Gaze offset duration: {gaze_offset_duration}")
-    
-    actual_stimulus_duration = core.getTime() - stimulus_start_time  # Calculate the duration
-    # Clear the screen after circles
-    win.flip()
-    
+    visual_search_start_time = core.getTime()
+    while core.getTime() - visual_search_start_time < 1.5:  # 1.5 seconds
+        for circle in circles:
+            circle.draw()
 
-    print(f"Trial {trial + 1}: Loading animation")
-    try:
-        fixation_animation = visual.MovieStim(
-        win=win,
-        filename=random.choice(animation_files),
-        loop=False,
-        noAudio=True
-        )
-        
-        video_width, video_height = 1920, 1080
-        
-        
-        # Set the position to center the video and ensure the original size
-        fixation_animation.pos = (0, 0)
-        fixation_animation.size = (video_width, video_height)
-       
-               
-        #fixation_animation.pos = (0, 0)    
+        if check_nodata(tracker.getPosition()):  # Check for no data
+            nodata_visual_search += frame_duration
 
-        print(f"Trial {trial + 1}: Starting animation")
-        
-        # Play the animation with timeout protection
-        animation_start_time = core.getTime()
-        animation_timeout = 2.0  # Maximum 2 seconds for animation
-        fixation_animation.play()
-        
-        while (fixation_animation.status != visual.FINISHED and 
-               core.getTime() - animation_start_time < animation_timeout):
-            # Check if the animation is actually playing
-            if hasattr(fixation_animation, '_player') and fixation_animation._player:
-                fixation_animation.draw()
-            else:
-                print(f"Trial {trial + 1}: Animation player not initialized")
-                break
-                
-            win.flip()
-            
-            if event.getKeys(keyList=['escape']):
-                win.close()
-                core.quit()
-        
-        print(f"Trial {trial + 1}: Animation loop completed")
-        
-        # Explicit cleanup
-        try:
-            fixation_animation.stop()
-        except Exception as e:
-            print(f"Trial {trial + 1}: Error stopping animation: {e}")
-            
-        try:
-            del fixation_animation
-        except Exception as e:
-            print(f"Trial {trial + 1}: Error deleting animation: {e}")
-            
-    except Exception as e:
-        print(f"Trial {trial + 1}: Animation error: {e}")
-    
-    # Multiple clear screens to ensure clean state
-    for _ in range(3):
         win.flip()
     
-    print(f"Trial {trial + 1}: Starting beep phase")
-    
-    # 400ms interval for delay and potential beep (24 frames at 60Hz)
-    auditory_cue = random.random() < 0.5
-    print(f"Trial {trial + 1}: Beep {'Played' if auditory_cue else 'Not Played'}")
+    actual_stimulus_duration = round(core.getTime() - visual_search_start_time, 3)
+    print(f"Trial {trial + 1}: No data during circles = {nodata_visual_search:.3f} seconds")
+    print(f"Trial {trial + 1}: Visual search phase completed in {actual_stimulus_duration:.3f} seconds")
 
-    if auditory_cue:
-        # Convert time intervals to frames
-        delay_frames = int(random.uniform(0, 0.1) / frame_duration)
-        beep_frames = int(random.uniform(0.2, 0.3) / frame_duration)
-        total_frames = int(0.4 / frame_duration)
-        remaining_frames = total_frames - (delay_frames + beep_frames)
-
-        # Delay phase
-        for frame in range(delay_frames):
-            win.flip()
-
-        # Play beep
-        next_flip = win.getFutureFlipTime(clock='ptb')
-        beep.play(when=next_flip)
-        for frame in range(beep_frames):
-            win.flip()
-        beep.stop()
-
-        # Remaining time
-        for frame in range(remaining_frames):
-            win.flip()
-
-    else:
-        # No beep - wait for 400ms (24 frames)
-        for frame in range(int(0.4 / frame_duration)):
-            win.flip()
-    
-    print(f"Trial {trial + 1}: Completed")
-    
-    # Ensure screen is clear before next trial
+    # Ensure the screen is clear after circles
     win.flip()
-    
-    # Small pause between trials
-    for frame in range(int(0.1 / frame_duration)):  # 100ms pause
-        win.flip()
 
-    # Data logging
-    stimulus_type = 'oddball' if odd_index in [0, 1] else 'standard'  # Example condition
+    # ---  SAVE TRIAL DATA ---
+    trial_duration = core.getTime() - trial_start_time
 
-    # Save trial data to ExperimentHandler
-    trials.addData('trial_number', trial_counter + 1)
+    stimulus_type = 'oddball' if odd_index in [0, 1] else 'standard'
+
+    trials.addData('trial_number', trial + 1)
     trials.addData('stimulus_type', stimulus_type)
     trials.addData('base_color', base_color)
     trials.addData('odd_color', odd_color)
     trials.addData('odd_index', odd_index)
-    trials.addData('stimulus_duration', actual_stimulus_duration)
-    #trials.addData('animation_timeout', animation_timeout)
-    trials.addData('auditory_cue', auditory_cue)
+    trials.addData('actual_isi_duration', actual_stimulus_duration)
     trials.addData('gaze_offset_duration', gaze_offset_duration)
+    trials.addData('pause_duration', pause_duration)
+    trials.addData('nodata_duration', nodata_duration)
+    trials.addData('auditory_cue', auditory_cue)
+    trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
+    trials.addData('nodata_visual_search', round(nodata_visual_search, 3))
+    trials.addData('trial_duration', round(trial_duration,3))
+    trials.addData('actual_beep_duration', beep_duration)
+    trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
+    trials.addData('animation_duration', round(animation_duration, 3))
+    trials.addData('beep_phase_duration', beep_phase_duration)
 
-    # Increment trial counter
-    trial_counter += 1
+    exp.nextEntry()
 
-    # Pause between trials
-    for frame in range(int(0.1 / frame_duration)):
-        win.flip()
+print("\nExperiment Completed")
+print(f"Total duration: {core.getTime() - start_time:.3f} seconds")
 
-# Save and close ExperimentHandler
-trials.saveAsWideText(fileName + '.csv')
+# --- SAVE FINAL DATA & CLOSE ---
+trials.saveAsWideText(fileName, sheetName='trials', appendFile=True)
 exp.saveAsPickle(fileName)
 
-# Close the window and quit
 win.close()
 core.quit()
