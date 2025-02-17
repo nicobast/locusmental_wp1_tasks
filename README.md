@@ -4,10 +4,10 @@
 This study consists of four tasks:
 * an passive auditory Oddball Task (auditory_oddball.py)
 * an active visual Oddball Task (visual_oddball.py)
-* regularity in rapid sound sequences - WORK IN PROGRESS
-* cued visual search - WORK IN PROGRESS
+* regularity in rapid sound sequences (rapid-sound-sequences.py)
+* cued visual search (cued-visual-search-animation.py)
 
-During all tasks, pupil dilation is measured via eye tracking and parallel port triggers are sent to an EEG recording PC. Several baseline phases are used to determine tonic pupil size. 
+During all tasks, pupil dilation is measured via eye tracking. Several baseline phases are used to determine tonic pupil size. 
 
 # Installation Guide for Python and Required Modules
 ## Python Installation
@@ -75,8 +75,12 @@ The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. 
 3. baseline phase
 
 ## The Visual Oddball Task
-The task is used and to observe effects of task utility and stimulus salience. It contains independent manipulations of both. In four task blocks, each including 150 trials, a frequent purple circle is presented with a probability of 80% while an infrequent smaller purple circle (oddball) is presented with a probability of 20%. As in the Auditory Oddball task, three additional standard trials precede each task block. The task starts with four separate practice blocks, each containing of 13 trials, as a familiarisation. In the end, the test subjcet receives feedback aboout their winnings. 
-
+The task is used and to observe effects of task utility and stimulus salience. It contains independent manipulations of both.The task consists of 110 trials (currently set to 30 for testing purposes). A frequent blue circle is presented with a probability of 77% (standard trials), while an infrequent larger blue circle (oddball trials) appears with a probability of 23%. Oddball trials are designed to be presented only after at least two standard trials. The task begins with a fixation cross displayed for 10 seconds.
+### before running the task 
+  * Set up your paths to your project folder. The data storage is automatically created in the directory where you execute the code
+  * Set up your monitor name(line 109)
+  * The current setup is adjusted for two screens: the main screen is used for task presentation, while the second screen is used for interrupting the task (e.g., a dialog box appears)
+  * Set up Testmode (line 85) and sampling_rate of the eye tracker(line 86)
 
 ### Automatic conversion of visual angle to pixels in script
 * *size_fixation_cross_in_pixels = 132*, also defines standard stimulus size and translates to 3.2 degrees visual angle on 24 inch screen with 25.59 inches screen distance (see https://elvers.us/perception/visualAngle/)
@@ -94,7 +98,7 @@ The task is used and to observe effects of task utility and stimulus salience. I
   * You need to either download the animations or clone them with the repository.
 * If you want to render the animations from the animation-cued-visual-search.py script:
   * The rendered videos will be stored in the same location (.\Media\Videos\1080p60).
-  * After rendering, select the videos you want to use and rename them sequentially from 1 to 21, otherwise you need to adjust the code in the task
+  * After rendering, select the videos you want to use and rename them sequentially from 1 to 18, otherwise you need to adjust the code in the task
 
 ## Before running the task
   * Create folders in your project directory if not existing data\cued_visual_search\logging_data
