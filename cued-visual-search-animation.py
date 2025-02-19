@@ -89,7 +89,7 @@ fileName = f'cued_visual_search{exp_info["Participant ID"]}_{timepoint}_{data.ge
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
 testmode_et = True
 sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
-background_color_rgb = "#666666"
+background_color_rgb = (.3,.3,.3) # RGB values for grey background
 size_fixation_cross_in_pixels = 60
 
 # Experiment handler saves experiment data automatically.
@@ -551,6 +551,7 @@ for trial in range(num_trials):
 
         # Play beep
         beep_start_time = core.getTime()
+        beep_start_time_unix = time.time()
         next_flip = win.getFutureFlipTime(clock='ptb')
         beep.play(when=next_flip)
         for frame in range(beep_frames):
@@ -587,10 +588,10 @@ for trial in range(num_trials):
     # Isoluminant colors for green, red, and yellow 
     # (RGB values would be green: (-1,1,-1), red: (1,-1,-1), yellow: (1,1,-1))
     isoluminant_colors = {
-    "green": (0, 255, 0),
+    "green": (0, 131, 0),
     "red": (255, 0, 0),
-    "yellow": (255, 255, 0)
-    }
+    "yellow": (86,86, 0)
+}
 
     # Select base and odd colors using their names
     base_color_name = random.choice(list(isoluminant_colors.keys()))
@@ -663,6 +664,7 @@ for trial in range(num_trials):
     trials.addData('pause_anim_duration', pause_anim_duration) # from gazecontingent function
     trials.addData('nodata_anim_duration', nodata_anim_duration) # from gazecontingent function
     trials.addData('auditory_cue', auditory_cue)
+    trials.addData('timestamp_beep', beep_start_time_unix)
     trials.addData('actual_beep_duration', beep_duration)
     trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
     trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
