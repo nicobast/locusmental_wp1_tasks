@@ -1,0 +1,75 @@
+{
+    "constants": {
+        "monitor": {
+            "name": "Iskra_monitor_204",
+            "width": 2560,
+            "height": 1440,
+            "distance_cm": 60,
+            "width_cm": 59.5
+        },
+        "audio": {
+            "device": "Realtek HD Audio 2nd output (Realtek(R) Audio)",
+            "latency_mode": 3, 
+            "Lib":"ptb"
+        },
+        "eyetracker": {
+            "testmode": false,
+            "sampling_rate": 60,
+            "device": "Tobii Pro Spark"
+         },
+        "psychopy_window": {
+            "fullscreen": true,
+            "background_color": [0, 0, 0],
+            "size_fixation_cross_in_pixels": 60
+        },
+        "presentation_screen": 0,
+        "dialog_screen": 1
+    },
+    "tasks": {
+        "rapid-sound-sequences": {
+            "logging": {
+                "base_path": "data/rapid_sound_sequences",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "data/rapid_sound_sequences/trialdata",
+                "eyetracking": "data/rapid_sound_sequences/eyetracking",
+                "logging": "data/rapid_sound_sequences/logging_data"
+            }
+        },
+        "cued-visual-search": {
+            "logging": {
+                "base_path": "data/visual_search_task",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "data/visual_search_task/trialdata",
+                "eyetracking": "data/visual_search_task/eyetracking",
+                "logging": "data/visual_search_task/logging_data"
+            }
+        },
+        "auditory-oddball": {
+            "logging": {
+                "base_path": "data/auditory_oddball",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "data/auditory_oddball/trialdata",
+                "eyetracking": "data/auditory_oddball/eyetracking",
+                "logging": "data/auditory_oddball/logging_data"
+            }
+        },
+        "visual-oddball": {
+            "logging": {
+                "base_path": "data/visual_oddball",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "data/visual_oddball/trialdata",
+                "eyetracking": "data/visual_oddball/eyetracking",
+                "logging": "data/visual_oddball/logging_data"
+            }
+        }
+    }
+        }
+    
