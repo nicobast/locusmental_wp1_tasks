@@ -66,6 +66,18 @@ Monitor parameters are adapted to the presentation PC. The name is saved with ps
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
 * in case testmode = True: the mouse is used as eyetracker and data stored in hdf5 file: -> import h5py -> access data: dset1 = f['data_collection/events/eyetracker/MonocularEyeSampleEvent']
 
+## Run All Tasks(Run the Battery)
+  To run the task, follow these steps:
+
+  Modify the config.json file:
+  * Adjust the following settings based on your setup:
+      - Monitor & Audio Settings: Configure display and sound settings as needed.
+      - Testmode: TRUE/FALSE testmode depending on your requirements(eyetracker available or not)
+
+  * Run the Task
+      - Execute the Runner script.
+      - Update the paths in the script to match your environment's directory structure.
+
 ## The Auditory Oddball Task
 The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. In four task blocks, each including 100 trials, a frequent tone (standard) is presented with a probability of 80% while an infrequent tone of a different pitch (oddball) is presented with a probability of 20%. The pitch level indicating oddballs in the 1st task block and the 3rd task block (oddball blocks) are either 500 Hz or 750 Hz. Oddballs in the 2nd and 4th task block are of the opposite pitch (oddball blocks reverse). Three additional standard trials precede each task block.  
 
