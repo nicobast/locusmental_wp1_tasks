@@ -10,6 +10,7 @@ import tobii_research as tr
 from psychopy.iohub import launchHubServer
 # For getting keyboard input:
 from psychopy.hardware import keyboard
+from psychopy.monitors import Monitor
 # For playing sound:
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['ptb'] # PTB described as highest accuracy sound class
@@ -23,16 +24,34 @@ from pathlib import Path
 import logging
 from datetime import datetime
 import os # 
+import json
+import sys
 # Miscellaneous: Hide messages in console from pygame:
 from os import environ
 environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
+# Load the config file
+with open("config.json", "r") as file:
+    config = json.load(file)
+
+# Select the task (e.g., "rapid-sound-sequences")
+task_name = "auditory-oddball"
+task_config = config["tasks"][task_name]
+constants = config["constants"]
 
 '''SETUP'''
 # setup logging - will be written to a file (data/logging_data):
 current_datetime = datetime.now()
 formatted_datetime = str(current_datetime.strftime("%Y-%m-%d %H-%M-%S"))
-logging_path = Path("data", "auditory_oddball", "logging_data").resolve()
+logging_path =  Path(task_config["logging"]["base_path"], task_config["logging"]["log_folder"]).resolve()
 filename_auditory_oddball = os.path.join(logging_path, formatted_datetime)
+
+# Check if the directory exists
+if not logging_path.exists():
+    # If it doesn't exist, create it
+    logging_path.mkdir(parents=True, exist_ok=True)
+else:
+    print(f"Directory {logging_path} already exists. Continuing to use it.")
 
 logging.basicConfig(
     level = logging.DEBUG,
@@ -40,53 +59,47 @@ logging.basicConfig(
     filemode = 'w', # w = write, for each subject an separate log file.
     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
-# welcome print
-print('THIS IS AUDITORY ODDBALL.')
-logging.info(' THIS IS AUDITORY ODDBALL.')
+trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
+eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
 
-# path to output data:
-path_to_data = Path("data", "auditory_oddball").resolve()
-trials_data_folder = Path(path_to_data, 'trialdata')
-eyetracking_data_folder = Path(path_to_data, 'eyetracking')
-loggings_data_folder = Path(path_to_data, 'logging_data')
+if not trials_data_folder.exists():
+    trials_data_folder.mkdir(parents=True)
+    
+if not eyetracking_data_folder.exists():
+    eyetracking_data_folder.mkdir(parents=True)
 
-# Create folders if they don't exist
-for folder in [trials_data_folder, eyetracking_data_folder, loggings_data_folder]:
-    folder.mkdir(parents=True, exist_ok=True)
-
-# Print paths
-print(trials_data_folder)
-print(eyetracking_data_folder)
-print(loggings_data_folder)
-
-# Log paths
-logging.info(f'Trials data folder: {trials_data_folder}')
-logging.info(f'Eyetracking data folder: {eyetracking_data_folder}')
-logging.info(f'Logging data folder: {loggings_data_folder}')
+print(f"THIS IS {task_name.upper()}")
+logging.info(f"THIS IS {task_name.upper()}")
 
 # testmode options
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
-# testmode_eeg = TRUE mimics an parallel port trigger an on-screen notation, FALSE = parallel port is available and defined, search "parallel_port_adress"
-testmode_et = False
+testmode_et = config["constants"]["eyetracker"]["testmode"]
+sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
+background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
+size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
+
+# Access values
+audio_device = config["constants"]["audio"]["device"]
+
 
 # Experimental settings:
 # Input dialogue boxes are presented on external screen 0.
-dialog_screen = 1
+dialog_screen = config["constants"]["dialog_screen"]
 # Stimuli are presented on internal screen 1.
-presentation_screen = 0
+presentation_screen =  config["constants"]["presentation_screen"]
+current_screen = presentation_screen  # Start in presentation mode
 number_of_repetitions = 20 
 number_of_repetition_standards = 1
 stimulus_duration_in_seconds = 0.1
 # If oddball or standrad stimulus is defined below.
 sound_one_in_Hz = 500
 sound_two_in_Hz = 750
-size_fixation_cross_in_pixels = 60
+
 # Inter Stimulus Interval (ISI) randomly varies between value0 and value1.
 ISI_interval = [1800, 2000]
 # Sensitivity: Warning of gaze offset from the center.
 gaze_offset_cutoff = 3 * size_fixation_cross_in_pixels
-# [0, 0 , 0] is gray as float [-1, 1]
-background_color_rgb = (0, 0, 0)
+
 white_slide = 'white'
 black_slide = 'black'
 manipulation_repetition = 5 
@@ -98,52 +111,52 @@ no_data_warning_cutoff = 0.5
 # Settings are stored automatically for each trial.
 settings = {}
 
-# hardware setting
-sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
-parallel_port_adress = 0x03FF8 #required for EEG triggers
-pulse_duration = 0.01 # EEG trigger variables. 10 ms duration of trigger signal.
-
-
 # Presenting a dialog box. Infos are added to settings.
 settings['id'] = 123 #default testing value
 #settings['group'] = ['ASD', 'TD'] #extra lines can pass additional info to experiment file
 #settings['luminance'] = 0 #extra lines can pass additional info to experiment file
 # Create a dialog box for participant info
-exp_info = {
-    "Participant ID": "",
-    "Timepoint": ["test", "pilot", "T1", "T2", "T3"]
-}
-
-dlg = gui.DlgFromDict(
-    dictionary=exp_info,
-    title= "auditory oddball",
-    order=["Participant ID", "Timepoint"] # Order of fields
-   
-)
-if not dlg.OK:
-    logging.warning("Experiment canceled by the user.")
-    core.quit()
-
-participant_id = exp_info["Participant ID"]
-timepoint = exp_info["Timepoint"]
-
-logging.info(f"Participant ID: {participant_id}")
-logging.info(f"Timepoint: {timepoint}")
+# Get participant ID and timepoint from command-line arguments
+participant_id = sys.argv[1]
+timepoint = sys.argv[2]
+print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
 selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data:
 # participant_id and selected_timepoint come from the dialog box input
-fileName = f'auditory_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
+fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler saves experiment data automatically.
 # The dictionary "settings" is passed to the experiment handler.
 exp = data.ExperimentHandler(
-    name="auditory_oddball",
+    name=task_name,
     version='0.2',
     extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
+
+MONITOR_NAME = config["constants"]["monitor"]["name"]
+
+mon = Monitor(MONITOR_NAME)
+mon.setWidth(config["constants"]["monitor"]["width_cm"])  # Physical width of the screen
+mon.setDistance(config["constants"]["monitor"]["distance_cm"])  # Distance from participant
+mon.setSizePix([config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]])  # Screen resolution
+
+mywin = visual.Window(
+    size=(config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]),
+    fullscr=config["constants"]["psychopy_window"]["fullscreen"],
+    screen=config["constants"]["presentation_screen"],
+    color=config["constants"]["psychopy_window"]["background_color"],
+    monitor=MONITOR_NAME,
+    units='pix'
+)
+
+refresh_rate = mywin.monitorFramePeriod #get monitor refresh rate in seconds
+print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
+
+# Set frame duration based on 60Hz refresh rate
+frame_duration = 1.0/60.0  # 16.67ms per frame
 
 # Two different sound frequencies (conditions) are balanced across groups and
 # saved in the settings dictionary:
@@ -167,27 +180,6 @@ if random_number >= 0.5:
     logging.info(' ODDBALL SOUND IS : ' f'{sound_one_in_Hz}' ' Hz')
     settings['standard_frequency'] = sound_two_in_Hz 
     settings['oddball_frequency'] = sound_one_in_Hz 
-
-# Monitor parameters are adapted to presentation PC.
-# Name is saved with PsychoPy monitor manager.
-# units (width, distance) are in cm.
-mon = monitors.Monitor(
-    name = 'Iskra_monitor_204',
-    width = 59.5,
-    distance = 60)
-
-# Create display window.
-# Unit was changed to pixel so that eye trcker outputs pixel on presentation screen.
-mywin = visual.Window(
-    size = [2560,1440],
-    fullscr=True,
-    monitor = mon,
-    color = background_color_rgb,
-    screen = presentation_screen,
-    units = "pix")
-
-refresh_rate = mywin.monitorFramePeriod #get monitor refresh rate in seconds
-print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
 #Setup Eye Tracking:
 if testmode_et:
@@ -347,6 +339,7 @@ def draw_gazedirect(background_color=background_color_rgb):
 
 # Check for keypresses, used to pause and quit experiment:
 def check_keypress():
+    global current_screen
     keys = kb.getKeys(['p','escape'], waitRelease = True)
     timestamp_keypress = clock.getTime()
 
@@ -357,22 +350,26 @@ def check_keypress():
     if 'escape' in keys:
         dlg = gui.Dlg(title='Quit?', labelButtonOK=' OK ', labelButtonCancel=' Cancel ')
         dlg.addText('Do you really want to quit? - Then press OK')
+        dlg.screen = dialog_screen
         dlg.show()  # show dialog and wait for OK or Cancel
         if dlg.OK:  # or if ok_data is not None
             print('EXPERIMENT ABORTED!')
             core.quit()
         else:
             print('Experiment continues...')
+            current_screen = presentation_screen
         pause_time = clock.getTime() - timestamp_keypress
 
     elif 'p' in keys:
         dlg = gui.Dlg(title='Pause', labelButtonOK='Continue')
         dlg.addText('Experiment is paused - Press Continue, when ready')
+        dlg.screen = dialog_screen
         dlg.show()  # show dialog and wait for OK
         pause_time = clock.getTime() - timestamp_keypress
     else:
         pause_time = 0
         # Show the experiment window again
+        current_screen = presentation_screen
     pause_time = round(pause_time,3)
     return pause_time
 

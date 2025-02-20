@@ -1,13 +1,10 @@
 # Import necessary modules
 from psychopy import prefs
-prefs.hardware['audioLib'] = ['ptb'] # PTB described as highest accuracy sound class
-prefs.hardware['audioDevice'] = 'Realtek HD Audio 2nd output (Realtek(R) Audio)' # define audio device - DEVICE SPECIFIC
-prefs.hardware['audioLatencyMode'] = 3 # high sound priority, low latency mode
-prefs.general['audioSampleRate'] = 44100
 from psychopy.hardware import keyboard
 from psychopy import visual, core, event, sound, monitors, gui, data, clock
 import tobii_research as tr
 from psychopy.iohub import launchHubServer
+from psychopy.monitors import Monitor
 import random, numpy, time
 # Library for managing paths
 from pathlib import Path
@@ -17,21 +14,31 @@ from datetime import datetime
 import os
 import traceback
 from datetime import datetime
+import json
+import sys
 
+# Load the config file
+with open("config.json", "r") as file:
+    config = json.load(file)
 
-# Define screens
-PRESENTATION_SCREEN = 0
-DIALOG_SCREEN = 1
-current_screen = PRESENTATION_SCREEN  # Start in presentation mode
+print("Available tasks:", config["tasks"].keys())  # Debugging step
+# Select the task 
+task_name = "cued-visual-search"
+task_config = config["tasks"][task_name]
+constants = config["constants"]
 
 # Setup logging:
 current_datetime = datetime.now()
 formatted_datetime = str(current_datetime.strftime("%Y-%m-%d %H-%M-%S"))
-logging_path = Path( "data", "cued_visual_search", "logging_data").resolve()
+logging_path =  Path(task_config["logging"]["base_path"], task_config["logging"]["log_folder"]).resolve()
 filename_visual_search = os.path.join(logging_path, formatted_datetime)
 
-# Ensure required directories exist BEFORE logging
-logging_path.mkdir(parents=True, exist_ok=True)
+# Check if the directory exists
+if not logging_path.exists():
+    # If it doesn't exist, create it
+    logging_path.mkdir(parents=True, exist_ok=True)
+else:
+    print(f"Directory {logging_path} already exists. Continuing to use it.")
 
 logging.basicConfig(
     level = logging.DEBUG,
@@ -39,62 +46,27 @@ logging.basicConfig(
     filemode = 'w', # w = write, for each subject an separate log file.
     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
     
-print("THIS IS CUED VISUAL SEARCH.")
-logging.info('THIS IS CUED VISUAL SEARCH.')
+trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
+eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
 
-# Path to output data:
-path_to_data = Path( "data", "cued_visual_search").resolve()
-trials_data_folder = Path(path_to_data, 'trialdata')
-eyetracking_data_folder = Path(path_to_data, 'eyetracking')
-loggings_data_folder = Path(path_to_data, 'logging_data')
-
-# Create folders if they don't exist
-for folder in [trials_data_folder, eyetracking_data_folder, loggings_data_folder]:
-    folder.mkdir(parents=True, exist_ok=True)
+if not trials_data_folder.exists():
+    trials_data_folder.mkdir(parents=True)
     
-print(trials_data_folder)
-print(eyetracking_data_folder)
-print(loggings_data_folder)
+if not eyetracking_data_folder.exists():
+    eyetracking_data_folder.mkdir(parents=True)
 
-logging.info(f'{trials_data_folder}')
-logging.info(f'{eyetracking_data_folder}')
-logging.info(f'{loggings_data_folder}')
+# Get participant ID and timepoint from command-line arguments
+participant_id = sys.argv[1]
+timepoint = sys.argv[2]
+print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-# Create a dialog box for participant info
-exp_info = {
-    "Participant ID": "",
-    "Timepoint": ["test", "pilot", "T1", "T2", "T3"]
-}
-
-dlg = gui.DlgFromDict(
-    dictionary=exp_info,
-    title= "Cued Visual Search Task",
-    order=["Participant ID", "Timepoint"] # Order of fields
-   
-)
-if not dlg.OK:
-    logging.warning("Experiment canceled by the user.")
-    core.quit()
-
-participant_id = exp_info["Participant ID"]
-timepoint = exp_info["Timepoint"][0]
-
-logging.info(f"Participant ID: {participant_id}")
-logging.info(f"Timepoint: {timepoint}")
-
+selected_timepoint = timepoint[0]  # Get the first item from the list
 # Name for output data:
-fileName = f'cued_visual_search{exp_info["Participant ID"]}_{timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
-
-# testmode options
-# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
-testmode_et = True
-sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
-background_color_rgb = (.3,.3,.3) # RGB values for grey background
-size_fixation_cross_in_pixels = 60
+fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
-    name = "cued_visual_search",
+    name = task_name,
     version = '0.1',
     #extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
@@ -112,38 +84,42 @@ trials = data.TrialHandler(
 # Add the TrialHandler to the ExperimentHandler
 exp.addLoop(trials)
 
-# ==== Monitor & Display Settings ====
-MONITOR_NAME = 'Iskra_monitor_204'
-MONITOR = monitors.Monitor(MONITOR_NAME)
+# testmode options
+# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
+testmode_et = config["constants"]["eyetracker"]["testmode"]
+sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
+background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
+size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
 
-# Manually define monitor properties (important for custom environments)
-MONITOR.setWidth(59.5)  # Monitor width in cm (adjust as needed)
-MONITOR.setSizePix([2560, 1440])  # Screen resolution in pixels
-MONITOR.setDistance(60)  # Distance from participant in cm
+# Access values
+audio_device = config["constants"]["audio"]["device"]
 
-# Get screen size (returns None if the monitor is not correctly set)
-SCREEN_SIZE = MONITOR.getSizePix()
+# Define screens
+PRESENTATION_SCREEN = config["constants"]["presentation_screen"]
+DIALOG_SCREEN = config["constants"]["dialog_screen"]
+current_screen = PRESENTATION_SCREEN  # Start in presentation mode
 
-# Ensure SCREEN_WIDTH and SCREEN_HEIGHT are properly set
-if SCREEN_SIZE is None:
-    SCREEN_WIDTH, SCREEN_HEIGHT = 2560, 1440  # Default resolution
-else:
-    SCREEN_WIDTH, SCREEN_HEIGHT = SCREEN_SIZE
+MONITOR_NAME = config["constants"]["monitor"]["name"]
 
-print(f"Monitor: {MONITOR_NAME}, Resolution: {SCREEN_WIDTH}x{SCREEN_HEIGHT}")
+mon = Monitor(MONITOR_NAME)
+mon.setWidth(config["constants"]["monitor"]["width_cm"])  # Physical width of the screen
+mon.setDistance(config["constants"]["monitor"]["distance_cm"])  # Distance from participant
+mon.setSizePix([config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]])  # Screen resolution
 
-# ==== Window Setup ====
 win = visual.Window(
-    size=[SCREEN_WIDTH, SCREEN_HEIGHT],
-    color=background_color_rgb,
-    fullscr=True,
-    monitor=MONITOR_NAME,  
-    screen=PRESENTATION_SCREEN,
+    size=(config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]),
+    fullscr=config["constants"]["psychopy_window"]["fullscreen"],
+    screen=config["constants"]["presentation_screen"],
+    color=config["constants"]["psychopy_window"]["background_color"],
+    monitor=MONITOR_NAME,
     units='pix'
 )
 
 refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
+
+# Set frame duration based on 60Hz refresh rate
+frame_duration = 1.0/60.0  # 16.67ms per frame
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
@@ -438,7 +414,7 @@ trial_counter = 0
 
 # --- PHASE 0: Baseline Fixation Cross (Only Once Before Trials Start) ---
 
-trials = data.TrialHandler(trialList=None, method='sequential', nReps=1, extraInfo=exp_info)
+trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
 exp.addLoop(trials)
 
 fixation_start = time.time()
@@ -467,7 +443,7 @@ for trial in range(num_trials):
     print(f"Starting trial {trial + 1}")
 
     trial_start_time = time.time()
-    trials = data.TrialHandler(trialList=None, method='sequential', nReps=1, extraInfo=exp_info)
+    trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
     # --- PHASE 1: Play Fixation Animation (Start of Trial) ---
@@ -538,6 +514,7 @@ for trial in range(num_trials):
         beep_frames = int(random.uniform(0.2, 0.3) / frame_duration)
         total_frames = int(0.4 / frame_duration)
         remaining_frames = total_frames - (delay_frames + beep_frames)
+        beep_start_time_unix= None
 
         delay_duration = round(delay_frames * frame_duration, 3)
 
@@ -591,7 +568,7 @@ for trial in range(num_trials):
     "green": (0, 131, 0),
     "red": (255, 0, 0),
     "yellow": (86,86, 0)
-}
+    }
 
     # Select base and odd colors using their names
     base_color_name = random.choice(list(isoluminant_colors.keys()))
@@ -664,7 +641,7 @@ for trial in range(num_trials):
     trials.addData('pause_anim_duration', pause_anim_duration) # from gazecontingent function
     trials.addData('nodata_anim_duration', nodata_anim_duration) # from gazecontingent function
     trials.addData('auditory_cue', auditory_cue)
-    trials.addData('timestamp_beep', beep_start_time_unix)
+    trials.addData('timestamp_beep', round(beep_start_time_unix,3))
     trials.addData('actual_beep_duration', beep_duration)
     trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
     trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))

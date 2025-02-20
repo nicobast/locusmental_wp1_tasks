@@ -3,11 +3,11 @@ import random, numpy
 import logging
 import numpy as np
 from pathlib import Path
-import os
 from datetime import datetime
 from psychopy.hardware import keyboard
 import tobii_research as tr
 from psychopy.iohub import launchHubServer
+from psychopy.monitors import Monitor
 # Library for managing paths
 from pathlib import Path
 # For logging data in a .log file:
@@ -15,81 +15,64 @@ import logging
 from datetime import datetime
 import os
 import traceback
+import json
+import sys
 
 
-# Define screens
-PRESENTATION_SCREEN = 0
-DIALOG_SCREEN = 1
-current_screen = PRESENTATION_SCREEN  # Start in presentation mode
+# Load the config file
+with open("config.json", "r") as file:
+    config = json.load(file)
+
+# Select the task (e.g., "rapid-sound-sequences")
+task_name = "visual-oddball"
+task_config = config["tasks"][task_name]
+constants = config["constants"]
 
 # ==== Logging ====
 current_datetime = datetime.now()
 formatted_datetime = str(current_datetime.strftime("%Y-%m-%d %H-%M-%S"))
-logging_path = Path("data", "visual_oddball", "logging_data").resolve()
-filename_oddball = os.path.join(logging_path, formatted_datetime)
+logging_path =  Path(task_config["logging"]["base_path"], task_config["logging"]["log_folder"]).resolve()
+filename_visual_oddball = os.path.join(logging_path, formatted_datetime)
+
+# Check if the directory exists
+if not logging_path.exists():
+    # If it doesn't exist, create it
+    logging_path.mkdir(parents=True, exist_ok=True)
+else:
+    print(f"Directory {logging_path} already exists. Continuing to use it.")
 
 logging.basicConfig(
     level=logging.DEBUG,
-    filename=filename_oddball,
+    filename=filename_visual_oddball,
     filemode='w',  # w = write, for each subject a separate log file
     format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
-print("THIS IS VISUAL ODDBALL TASK.")
-logging.info('THIS IS VISUAL ODDBALL TASK.')
 
-# ==== Data Output ====
-# Path to output data
-path_to_data = Path("data", "visual_oddball").resolve()
-trials_data_folder = Path(path_to_data, 'trialdata')
-eyetracking_data_folder = Path(path_to_data, 'eyetracking')
-loggings_data_folder = Path(path_to_data, 'logging_data')
+trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
+eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
 
-# Create folders if they don't exist
-for folder in [trials_data_folder, eyetracking_data_folder, loggings_data_folder]:
-    folder.mkdir(parents=True, exist_ok=True)
+if not trials_data_folder.exists():
+    trials_data_folder.mkdir(parents=True)
+    
+if not eyetracking_data_folder.exists():
+    eyetracking_data_folder.mkdir(parents=True)
 
-print(trials_data_folder)
-print(eyetracking_data_folder)
-print(loggings_data_folder)
+print(f"THIS IS {task_name.upper()}")
+logging.info(f"THIS IS {task_name.upper()}")
 
-logging.info(f'{trials_data_folder}')
-logging.info(f'{eyetracking_data_folder}')
-logging.info(f'{loggings_data_folder}')
+# Get participant ID and timepoint from command-line arguments
+participant_id = sys.argv[1]
+timepoint = sys.argv[2]
+print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-# Create a dialog box for participant info
-exp_info = {
-    "Participant ID": "",
-    "Timepoint": ["test", "pilot", "T1", "T2", "T3"]
-}
-
-dlg = gui.DlgFromDict(
-    dictionary=exp_info,
-    title="Visual Oddball Task",
-    order=["Participant ID", "Timepoint"]
-)
-if not dlg.OK:
-    logging.warning("Experiment canceled by the user.")
-    core.quit()
-
-participant_id = exp_info["Participant ID"]
-timepoint = exp_info["Timepoint"][0]
-
-logging.info(f"Participant ID: {participant_id}")
-logging.info(f"Timepoint: {timepoint}")
+selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data
-fileName = f'visual_oddball_{exp_info["Participant ID"]}_{timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
-
-# testmode options
-# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
-testmode_et = False
-sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
-background_color_rgb = "#666666"
-size_fixation_cross_in_pixels = 60
+fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler
 exp = data.ExperimentHandler(
-    name="visual_oddball",
+    name=task_name,
     version='0.1',
     dataFileName=str(trials_data_folder / fileName),
 )
@@ -105,23 +88,42 @@ trials = data.TrialHandler(
 # Add the TrialHandler to the ExperimentHandler
 exp.addLoop(trials)
 
-# ==== Monitor & Display Settings ====
-MONITOR_NAME = 'Iskra_monitor_204'
-MONITOR = monitors.Monitor(MONITOR_NAME, distance=60)
-SCREEN_WIDTH, SCREEN_HEIGHT = MONITOR.getSizePix()
-BACKGROUND_COLOR = '#666666'
-FULLSCREEN = True
+# testmode options
+# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
+testmode_et = config["constants"]["eyetracker"]["testmode"]
+sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
+background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
+size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
 
-# ==== Window Setup ====
+# Access values
+audio_device = config["constants"]["audio"]["device"]
+
+# Define screens
+PRESENTATION_SCREEN = config["constants"]["presentation_screen"]
+DIALOG_SCREEN = config["constants"]["dialog_screen"]
+current_screen = PRESENTATION_SCREEN  # Start in presentation mode
+
+MONITOR_NAME = config["constants"]["monitor"]["name"]
+
+mon = Monitor(MONITOR_NAME)
+mon.setWidth(config["constants"]["monitor"]["width_cm"])  # Physical width of the screen
+mon.setDistance(config["constants"]["monitor"]["distance_cm"])  # Distance from participant
+mon.setSizePix([config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]])  # Screen resolution
+
 win = visual.Window(
-    size=[SCREEN_WIDTH, SCREEN_HEIGHT], 
-    color=BACKGROUND_COLOR,
-    fullscr=FULLSCREEN,
+    size=(config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]),
+    fullscr=config["constants"]["psychopy_window"]["fullscreen"],
+    screen=config["constants"]["presentation_screen"],
+    color=config["constants"]["psychopy_window"]["background_color"],
     monitor=MONITOR_NAME,
-    screen=PRESENTATION_SCREEN,
     units='pix'
 )
 
+refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
+print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
+
+# Set frame duration based on 60Hz refresh rate
+frame_duration = 1.0/60.0  # 16.67ms per frame
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
@@ -157,12 +159,6 @@ io = launchHubServer(**iohub_config,
 tracker = io.devices.tracker
 tracker.setRecordingState(True)
 print(tracker)
-
-refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
-print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
-
-# Set frame duration based on 60Hz refresh rate
-frame_duration = 1.0/60.0  # 16.67ms per frame
 
 # Draw figure for gaze contincency, when gaze is offset:
 def draw_gazedirect(background_color = background_color_rgb):
@@ -258,7 +254,7 @@ def check_nodata(gaze_position):
     return nodata_boolean
 
 # Get gaze position and offset cutoff.
-gaze_offset_cutoff = 600
+gaze_offset_cutoff = 3*size_fixation_cross_in_pixels
 # Then check for the offset of gaze from the center screen.
 def check_gaze_offset(gaze_position):
     gaze_center_offset = numpy.sqrt((gaze_position[0])**2 + (gaze_position[1])**2) #pythagoras theorem
@@ -379,12 +375,12 @@ def oddball_gazecontingent(oddball_object, duration_in_seconds, background_color
 # ==== Stimulus Properties ====
 STANDARD_SIZE = 114 # degrees 2.9
 ODDBALL_SIZE = 180  # degrees 4.6
-STIMULUS_COLOR = 'blue'
+STIMULUS_COLOR = (0,.4,.6)
 
 # ==== Timing (in seconds) ====
 STIMULUS_DURATION = 150 / 1000  # 150ms
 ISI_DURATION = 1500 / 1000  # 1500ms
-FIXATION_TIME = 10  # 10s fixation cross
+FIXATION_TIME = 5  # 10s fixation cross
 
 # ==== Trial Structure ====
 TOTAL_TRIALS = 30 # adjust to 110 for real experiment
@@ -543,7 +539,7 @@ def run_experiment():
                 fixation_end = core.getTime()
                 fixation_duration = round(fixation_end - fixation_start, 3)
                 
-                trials.addData('trial_number', trials.thisN + 1)
+                trials.addData('trial_number_', trials.thisN + 1)
                 trials.addData('condition', 'fixation')
                 trials.addData('fixation_duration', fixation_duration)
                 trials.addData('fixation_actual_isi_duration', actual_fixation_duration)
@@ -562,7 +558,7 @@ def run_experiment():
 
             # Save trial data
             trials.addData('trial_number', trials.thisN)
-            trials.addData('condition', trial_type)
+            #trials.addData('condition', trial_type)
             trials.addData('stimulus_duration', stimulus_duration)
             trials.addData('nodata_stimulus', nodata_stimulus)
             trials.addData('trial_duration', trial_duration)

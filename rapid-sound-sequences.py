@@ -1,6 +1,7 @@
 from psychopy import visual, core, sound, event, prefs, monitors, gui, data, clock
 from psychopy.hardware import keyboard
 from psychopy.iohub import launchHubServer
+from psychopy.monitors import Monitor
 import numpy as np
 import numpy
 import random
@@ -14,80 +15,62 @@ import logging
 from datetime import datetime
 import os
 import traceback
+import json
+import sys
+
+# Load the config file
+with open("config.json", "r") as file:
+    config = json.load(file)
+
+# Select the task (e.g., "rapid-sound-sequences")
+task_name = "rapid-sound-sequences"
+task_config = config["tasks"][task_name]
+constants = config["constants"]
 
 # Setup logging:
 current_datetime = datetime.now()
 formatted_datetime = str(current_datetime.strftime("%Y-%m-%d %H-%M-%S"))
-logging_path = Path( "data", "rapid_sound_sequences", "logging_data").resolve()
+logging_path =  Path(task_config["logging"]["base_path"], task_config["logging"]["log_folder"]).resolve()
 filename_rapid_sound_sequences = os.path.join(logging_path, formatted_datetime)
 
-# Ensure required directories exist BEFORE logging
-logging_path.mkdir(parents=True, exist_ok=True)
+# Check if the directory exists
+if not logging_path.exists():
+    # If it doesn't exist, create it
+    logging_path.mkdir(parents=True, exist_ok=True)
+else:
+    print(f"Directory {logging_path} already exists. Continuing to use it.")
 
 logging.basicConfig(
     level = logging.DEBUG,
     filename = filename_rapid_sound_sequences,
     filemode = 'w', # w = write, for each subject an separate log file.
     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
+
+trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
+eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
+
+if not trials_data_folder.exists():
+    trials_data_folder.mkdir(parents=True)
     
-print("THIS IS RAPID SOUND SEQUENCES")
-logging.info('THIS IS RAPID SOUND SEQUENCES')
+if not eyetracking_data_folder.exists():
+    eyetracking_data_folder.mkdir(parents=True)
 
-# Path to output data:
-path_to_data = Path( "data", "rapid-sound-sequences").resolve()
-trials_data_folder = Path(path_to_data, 'trialdata')
-eyetracking_data_folder = Path(path_to_data, 'eyetracking')
-loggings_data_folder = Path(path_to_data, 'logging_data')
+print(f"THIS IS {task_name.upper()}")
+logging.info(f"THIS IS {task_name.upper()}")
 
-# Create folders if they don't exist
-for folder in [trials_data_folder, eyetracking_data_folder, loggings_data_folder]:
-    folder.mkdir(parents=True, exist_ok=True)
+participant_id = sys.argv[1]
+timepoint = sys.argv[2]
+print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-print(trials_data_folder)
-print(eyetracking_data_folder)
-print(loggings_data_folder)
-
-logging.info(f'{trials_data_folder}')
-logging.info(f'{eyetracking_data_folder}')
-logging.info(f'{loggings_data_folder}')
-
-# Create a dialog box for participant info
-exp_info = {
-    "Participant ID": "",
-    "Timepoint": ["test", "pilot", "T1", "T2", "T3"]
-}
-
-dlg = gui.DlgFromDict(
-    dictionary=exp_info,
-    title= "Rapid Sound Sequences",
-    order=["Participant ID", "Timepoint"] # Order of fields
-   
-)
-if not dlg.OK:
-    logging.warning("Experiment canceled by the user.")
-    core.quit()
-
-participant_id = exp_info["Participant ID"]
-timepoint = exp_info["Timepoint"][0]
-
-logging.info(f"Participant ID: {participant_id}")
-logging.info(f"Timepoint: {timepoint}")
+selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data:
-fileName = f'rapid_sound_sequences{exp_info["Participant ID"]}_{timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
-
-# testmode options
-# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
-testmode_et = False
-sampling_rate = 60 # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
-background_color_rgb = (.3,.3,.3)
-size_fixation_cross_in_pixels = 60
+fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
-    name = "rapid-sound-sequences",
+    name = task_name,
     version = '0.1',
-    #extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
 str(trials_data_folder / fileName)
@@ -103,25 +86,35 @@ trials = data.TrialHandler(
 # Add the TrialHandler to the ExperimentHandler
 exp.addLoop(trials)
 
-# ==== Monitor & Display Settings ====
-MONITOR_NAME = 'Iskra_monitor_204'
-mon = monitors.Monitor(MONITOR_NAME, distance=60)
-SCREEN_WIDTH, SCREEN_HEIGHT = mon.getSizePix()
-BACKGROUND_COLOR = (0.3,0.3,0.3)
-FULLSCREEN = True
+# testmode options
+# testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
+testmode_et = config["constants"]["eyetracker"]["testmode"]
+sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
+background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
+size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
+
+# Access values
+audio_device = config["constants"]["audio"]["device"]
+
 
 # Define screens
-PRESENTATION_SCREEN = 0
-DIALOG_SCREEN = 1
+PRESENTATION_SCREEN = config["constants"]["presentation_screen"]
+DIALOG_SCREEN = config["constants"]["dialog_screen"]
 current_screen = PRESENTATION_SCREEN  # Start in presentation mode
 
-# ==== Window Setup ====
+MONITOR_NAME = config["constants"]["monitor"]["name"]
+
+mon = Monitor(MONITOR_NAME)
+mon.setWidth(config["constants"]["monitor"]["width_cm"])  # Physical width of the screen
+mon.setDistance(config["constants"]["monitor"]["distance_cm"])  # Distance from participant
+mon.setSizePix([config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]])  # Screen resolution
+
 win = visual.Window(
-    size=[SCREEN_WIDTH, SCREEN_HEIGHT], 
-    color=BACKGROUND_COLOR,
-    fullscr=FULLSCREEN,
+    size=(config["constants"]["monitor"]["width"], config["constants"]["monitor"]["height"]),
+    fullscr=config["constants"]["psychopy_window"]["fullscreen"],
+    screen=config["constants"]["presentation_screen"],
+    color=config["constants"]["psychopy_window"]["background_color"],
     monitor=MONITOR_NAME,
-    screen=PRESENTATION_SCREEN,
     units='pix'
 )
 
@@ -131,10 +124,6 @@ print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 # Set frame duration based on 60Hz refresh rate
 frame_duration = 1.0/60.0  # 16.67ms per frame
 
-# ==== Sound Settings ====
-prefs.hardware['audioLib'] = ['ptb']
-prefs.hardware['audioDevice'] = 'Realtek HD Audio 2nd output (Realtek(R) Audio)'
-prefs.hardware['audioLatencyMode'] = 3
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
@@ -587,7 +576,7 @@ def show_baseline_fixation():
     
     fixation_start = time.time()
 
-    trials = data.TrialHandler(trialList=None, method='sequential', nReps=1, extraInfo=exp_info)
+    trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
     actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = rapidsequences_gazecontingent(
@@ -642,7 +631,7 @@ def run_experiment():
     # --- Phase 0: Show Baseline Fixation Cross before trials ---
     show_baseline_fixation()
 
-    trials = data.TrialHandler(trialList=trial_order, method='sequential', nReps=1, extraInfo=exp_info)
+    trials = data.TrialHandler(trialList=trial_order, method='sequential', nReps=1)
     exp.addLoop(trials)
 
     try:
