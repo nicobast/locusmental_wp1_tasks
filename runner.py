@@ -5,9 +5,13 @@ from psychopy import gui, core
 from datetime import datetime
 import os
 from pathlib import Path
+import json
 
-venv_python = Path("C:/Users/iskra_todorova/PowerFolders/CodeTests/venv310/Scripts/python.exe").resolve()
+with open("C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/config.json", "r") as file:
+    config = json.load(file)
 
+venv_python = Path(config["python_env"]["venv_path"]).resolve()
+task_paths = config["task_paths"]
 
 # Setup logging:
 current_datetime = datetime.now()
@@ -50,28 +54,28 @@ logging.info(f"Timepoint: {timepoint}")
 
 # List of tasks to run in sequence
 tasks = [
-    "visual_oddball.py",
-    "cued-visual-search-animation.py",
-    "auditory_oddball.py",
-    "rapid-sound-sequences.py"
+    #"auditory_oddball",
+    "cued_visual_search",
+    #"rapid_sound_sequences",
+    #"visual_oddball"
 ]
 
-def run_task(task_name):
+def run_task(task_name, task_path):
     logging.info(f"Starting task: {task_name}")
-    print(f"Running {task_name}...")  
+    print(f"Running {task_name}...")
     
-    # Run the Python script using the virtual environment's Python
-    subprocess.run([str(venv_python), task_name, participant_id, timepoint])  
+    subprocess.run([str(venv_python), str(task_path), participant_id, timepoint])
 
     logging.info(f"Finished task: {task_name}")
-    
-    # Pause between tasks
     print("Pausing for 10 seconds before the next task...\n")
     time.sleep(10)
 
-# Run all tasks sequentially
-for task in tasks:
-    run_task(task)
+# Run all tasks correctly
+for task_name in tasks:  # Run only selected tasks in this order
+    if task_name in task_paths:
+        run_task(task_name, task_paths[task_name])
+    else:
+        logging.warning(f"Task {task_name} not found in config.") 
 
 print("All tasks completed!")
 logging.info("All tasks completed.")
