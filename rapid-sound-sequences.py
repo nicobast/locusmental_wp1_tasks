@@ -50,7 +50,7 @@ trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
 eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
 
 if not trials_data_folder.exists():
-    trials_data_folder.mkdir(parents=True)
+    trials_data_folder.mkdir(parents=True, exist_ok = True)
     
 if not eyetracking_data_folder.exists():
     eyetracking_data_folder.mkdir(parents=True)
@@ -65,7 +65,7 @@ print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data:
-fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
+fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
@@ -121,10 +121,6 @@ win = visual.Window(
 refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
-# Set frame duration based on 60Hz refresh rate
-frame_duration = 1.0/60.0  # 16.67ms per frame
-
-
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
 if testmode_et:
@@ -151,8 +147,8 @@ if not testmode_et:
 # IOHUB creates a different instance that records eye tracking data in hdf5 file saved in datastore_name:
 io = launchHubServer(**iohub_config,
                         experiment_code = str(eyetracking_data_folder),
-                        session_code = fileName,
-                        datastore_name = str(eyetracking_data_folder / fileName), #where data is stored
+                        session_code = str(fileName),
+                        datastore_name = str(eyetracking_data_folder / str(fileName)), #where data is stored
                         window = win)
 
 # Call the eyetracker device and start recording - different instance:
@@ -259,6 +255,7 @@ gaze_offset_cutoff = 3*size_fixation_cross_in_pixels
 # Then check for the offset of gaze from the center screen.
 def check_gaze_offset(gaze_position):
     gaze_center_offset = numpy.sqrt((gaze_position[0])**2 + (gaze_position[1])**2) #pythagoras theorem
+    #print(f"DEBUG: gaze_position = {gaze_position}")
     if gaze_center_offset >= gaze_offset_cutoff:
         offset_boolean = True
     else:
@@ -381,7 +378,6 @@ CONTROL_TRIALS = 5
 TRANSITION_TRIALS = 10
 TOTAL_TRIALS = CONTROL_TRIALS * 2 + TRANSITION_TRIALS * 2
 INTER_TRIAL_INTERVAL = 2
-#REFRESH_RATE = 60
 
 # Generate frequency pool
 frequency_pool = list(np.logspace(np.log10(MIN_FREQ), np.log10(MAX_FREQ), POOL_SIZE))
@@ -429,8 +425,8 @@ def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", tri
         
         played_sequences.append(current_frequencies[:])  # Store played order
         
-        print(f"\nRepetition {rep + 1}:")
-        print(f"Frequencies: {', '.join([f'{f:.1f}' for f in current_frequencies])}")
+        #print(f"\nRepetition {rep + 1}:")
+        #print(f"Frequencies: {', '.join([f'{f:.1f}' for f in current_frequencies])}")
         
         for idx, freq in enumerate(current_frequencies):
             tone = sound.Sound(value=freq, secs=DURATION_TONE, stereo=True)
@@ -449,19 +445,26 @@ def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", tri
             # Stop all scheduled tones
             for tone, _ in all_tones:
                 tone.stop()
-            return True, played_sequences  # Return played sequences along with stimuli data
+            return nodata_stimulus, gaze_offset_stimuli, played_sequences  # Return played sequences along with stimuli data
         
         # Check gaze position and update display accordingly
-        if check_nodata(tracker.getPosition()):
+        gaze_position = tracker.getPosition()  # Get the current gaze position
+        
+        # Check for missing data (gaze position is None)
+        if check_nodata(gaze_position):
             nodata_stimulus += refresh_rate  # Accumulate missing data time
             fixation.draw()  # Show fixation during no data
         else:
-            gaze_position = tracker.getPosition()
-            if check_gaze_offset(gaze_position):
-                gaze_offset_stimuli += refresh_rate  # Accumulate gaze offset time
-                draw_gazedirect(background_color_rgb)  # Show gaze direction when offset
+            if gaze_position is not None:  # Ensure gaze_position is valid before checking offset
+                if check_gaze_offset(gaze_position):
+                    gaze_offset_stimuli += refresh_rate  # Accumulate gaze offset time
+                    draw_gazedirect(background_color_rgb)  # Show gaze direction when offset
+                else:
+                    fixation.draw()  # Show fixation when gaze is centered
             else:
-                fixation.draw()  # Show fixation when gaze is centered
+                # If gaze_position is None, skip gaze offset handling and just show fixation
+                print("Warning: Gaze position is None, skipping gaze offset check.")
+                fixation.draw()  # Show fixation by default when gaze position is None
     
         win.flip()  # Update display with the current fixation status
 
@@ -485,78 +488,125 @@ def present_trial(condition, frequency_pool, trial_num):
     played_sequences = []
 
     if condition == "REG10":
-        start_timestamp_0 = time.time()
+        start_timestamp_0 = core.getTime()
         # REG10: 10 tones sequence repeated 12 times (6 seconds)
         sequence = generate_sequence(frequency_pool, 10, with_replacement=False)
         for _ in range(12):  # REG10 repeats 12 times
             played_sequences.extend(sequence)
-        nodata_stimulus, gaze_offset_stimuli, played_sequences = play_tone_sequence(sequence, 12, shuffle=False, name="REG10", trial_num=trial_num)
-        end_timestamp_2 = time.time()
+        result = play_tone_sequence(sequence, 12, shuffle=False, name="REG10", trial_num=trial_num)
+        
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, played_sequences = result
+        else:
+            # Handle error: not enough values returned, set default values or raise error
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
+        
+        end_timestamp_2 = core.getTime()
 
     elif condition == "RAND20":
-        start_timestamp_0 = time.time()
+        start_timestamp_0 = core.getTime()
         # RAND20: 20 tones sequence repeated 6 times (6 seconds)
         sequence = generate_sequence(frequency_pool, 20, with_replacement=True)
         for _ in range(6):  # RAND20 repeats 6 times
             played_sequences.extend(sequence)
-        nodata_stimulus, gaze_offset_stimuli, played_sequences = play_tone_sequence(sequence, 6, shuffle=True, name="RAND20", trial_num=trial_num)
-        end_timestamp_2 = time.time()
+        result = play_tone_sequence(sequence, 6, shuffle=True, name="RAND20", trial_num=trial_num)
+        
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, played_sequences = result
+        else:
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
+        
+        end_timestamp_2 = core.getTime()
 
     elif condition == "REG10-RAND20":
-        start_timestamp_0 = time.time()
+        start_timestamp_0 = core.getTime()
         # First 3 seconds: REG10 (6 repetitions)
         sequence1 = generate_sequence(frequency_pool, 10, with_replacement=False)
         part1_sequences = []  # Store REG10 sequences separately
         for _ in range(6):  
             part1_sequences.extend(sequence1)
-        nodata_stimulus, gaze_offset_stimuli, part1_sequences = play_tone_sequence(sequence1, 6, shuffle=False, name="REG10-RAND20 (REG10 part)", trial_num=trial_num)
-        # Capture timestamp at transition
-        transition_timestamp_1 = time.time()
+        result = play_tone_sequence(sequence1, 6, shuffle=False, name="REG10-RAND20 (REG10 part)", trial_num=trial_num)
         
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, part1_sequences = result
+        else:
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
+        
+        # Capture timestamp at transition
+        transition_timestamp_1 = core.getTime()
+
         # Second 3 seconds: RAND20 (3 repetitions)
         sequence2 = generate_sequence(frequency_pool, 20, with_replacement=True)
         part2_sequences = []  # Store RAND20 sequences separately
         for _ in range(3):  
             part2_sequences.extend(sequence2)
-        nodata_stimulus, gaze_offset_stimuli, part2_sequences = play_tone_sequence(sequence2, 3, shuffle=True, name="REG10-RAND20 (RAND20 part)", trial_num=trial_num)
+        result = play_tone_sequence(sequence2, 3, shuffle=True, name="REG10-RAND20 (RAND20 part)", trial_num=trial_num)
+
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, part2_sequences = result
+        else:
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
         
         # Combine the two parts
         played_sequences.extend(part1_sequences)
         played_sequences.extend(part2_sequences)
 
         # Capture timestamp at end of second sequence (RAND20 part)
-        end_timestamp_2 = time.time()
+        end_timestamp_2 = core.getTime()
 
     elif condition == "RAND20-REG10":
-        start_timestamp_0 = time.time()
+        start_timestamp_0 = core.getTime()
         # First 3 seconds: RAND20 (3 repetitions)
         sequence1 = generate_sequence(frequency_pool, 20, with_replacement=True)
         part1_sequences = []  # Store RAND20 sequences separately
         for _ in range(3):  
             part1_sequences.extend(sequence1)
-        nodata_stimulus, gaze_offset_stimuli, part1_sequences = play_tone_sequence(sequence1, 3, shuffle=True, name="RAND20-REG10 (RAND20 part)", trial_num=trial_num)
+        result = play_tone_sequence(sequence1, 3, shuffle=True, name="RAND20-REG10 (RAND20 part)", trial_num=trial_num)
+        
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, part1_sequences = result
+        else:
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
         
         # Capture timestamp at transition
-        transition_timestamp_1 = time.time()
-        
+        transition_timestamp_1 = core.getTime()
+
         # Second 3 seconds: REG10 (6 repetitions)
         sequence2 = generate_sequence(frequency_pool, 10, with_replacement=False)
         part2_sequences = []  # Store REG10 sequences separately
         for _ in range(6):  
             part2_sequences.extend(sequence2)
-        nodata_stimulus, gaze_offset_stimuli, part2_sequences = play_tone_sequence(sequence2, 6, shuffle=False, name="RAND20-REG10 (REG10 part)", trial_num=trial_num)
+        result = play_tone_sequence(sequence2, 6, shuffle=False, name="RAND20-REG10 (REG10 part)", trial_num=trial_num)
+        
+        # Check if we received three values, and unpack them
+        if len(result) == 3:
+            nodata_stimulus, gaze_offset_stimuli, part2_sequences = result
+        else:
+            print(f"Error: play_tone_sequence did not return the expected 3 values. Received: {len(result)} values.")
+            return None  # Or handle error more appropriately
         
         # Combine the two parts
         played_sequences.extend(part1_sequences)
         played_sequences.extend(part2_sequences)
+        
         # Capture timestamp at end of second sequence (REG10 part)
-        end_timestamp_2 = time.time()
+        end_timestamp_2 = core.getTime()
 
     # Now save all sequences at the end of the trial (to prevent overwriting)
     all_played_sequences.append(played_sequences)
 
-   
     return start_timestamp_0, transition_timestamp_1, end_timestamp_2, nodata_stimulus, gaze_offset_stimuli, played_sequences
+
 
 
 # ==== Fixation Cross for Baseline
@@ -573,19 +623,19 @@ FIXATION_TIME = 5 # 5 seconds
 # --- PHASE 0: Baseline Fixation Cross (Only Once Before Trials Start) ---
 def show_baseline_fixation():
     print("Displaying Baseline Fixation Cross for 5 seconds.")
-    
-    fixation_start = time.time()
-
+    timestamp_exp =core.getTime()
+    fixation_start = timestamp_exp
     trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
     actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = rapidsequences_gazecontingent(
         fixation, FIXATION_TIME, background_color=background_color_rgb
     )
-    fixation_end = time.time()
+    fixation_end = core.getTime()
     fixation_duration = round(fixation_end - fixation_start, 3)
 
     # Save fixation baseline data separately
+    exp.addData('timestamp_exp',timestamp_exp)
     exp.addData('baseline_fixation_start_timestamp', fixation_start)
     exp.addData('baseline_fixation_end_timestamp', fixation_end)
     exp.addData('baseline_fixation_duration', fixation_duration)
@@ -622,7 +672,7 @@ def run_experiment():
     random.shuffle(trial_order)  # Shuffle all trials to ensure randomness
 
     print("Starting Experiment")
-    start_time = time.time()
+    start_time = core.getTime()
     
     # **Start Eye-tracking Recording**,
     tracker.setRecordingState(True)  
@@ -641,7 +691,9 @@ def run_experiment():
             trial_num = trial["trial_num"]
             expected_duration = trial['expected_duration']
             
-            trial_start_time = time.time()
+            timestamp_exp =core.getTime()
+            trial_start_time = timestamp_exp
+
             print(f"\n=== Trial {trial_num}: {condition} ===")
             try:
                 # --- Inter Stimulus Interval (ISI) Phase ---
@@ -661,11 +713,11 @@ def run_experiment():
                 # --- Stimulus Phase ---
                 print(f"Presenting trial {trial_num} with condition: {condition}")
 
-                stimulus_start_time = time.time()  # Record start time of the stimulus
+                stimulus_start_time = core.getTime()  # Record start time of the stimulus
 
-                start_timestamp_0, transition_timestamp_1, end_timestamp_2,nodata_stimulus, gaze_offset_stimuli, played_sequences = present_trial(condition, frequency_pool, trial_num)
+                start_timestamp_0, transition_timestamp_1, end_timestamp_2, nodata_stimulus, gaze_offset_stimuli, played_sequences = present_trial(condition, frequency_pool, trial_num)
                                 
-                stimulus_end_time = time.time()  # Record end time of the stimulus
+                stimulus_end_time = core.getTime()  # Record end time of the stimulus
                 stimulus_duration = round(stimulus_end_time - stimulus_start_time, 3)
                 
                 pause_duration += check_keypress()
@@ -680,9 +732,10 @@ def run_experiment():
                 continue  # Skip to the next trial  
             
             # **Log Trial Data**
-            trial_end_time = time.time()
+            trial_end_time = core.getTime()
             trial_duration = round(trial_end_time - trial_start_time, 3)
-
+            
+            trials.addData('timestamp_exp', timestamp_exp)
             trials.addData('trial_start_time', trial_start_time) # from the trial in run_experiment
             trials.addData('trial_end_time', trial_end_time) #  from the trial in run_experiment
             #trials.addData("Trial", trial_num + 1) # from the trial, trial_order
@@ -719,8 +772,8 @@ def run_experiment():
         traceback.print_exc()
     finally:
          # Save and close ExperimentHandler
-        trials.saveAsExcel(fileName, appendFile=True)
-        exp.saveAsPickle(fileName)
+        #trials.saveAsExcel(str(fileName), appendFile=True)
+        #exp.saveAsPickle(str(fileName))
 
         win.close()
         core.quit()

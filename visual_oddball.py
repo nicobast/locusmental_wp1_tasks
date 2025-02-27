@@ -1,5 +1,5 @@
 from psychopy import visual, core, data, event, gui, logging, monitors, clock
-import random, numpy
+import random, numpy, time
 import logging
 import numpy as np
 from pathlib import Path
@@ -17,13 +17,14 @@ import os
 import traceback
 import json
 import sys
+import pandas as pd
 
 
 # Load the config file
 with open("config.json", "r") as file:
     config = json.load(file)
 
-# Select the task (e.g., "rapid-sound-sequences")
+# Select the task
 task_name = "visual-oddball"
 task_config = config["tasks"][task_name]
 constants = config["constants"]
@@ -49,11 +50,12 @@ logging.basicConfig(
 
 
 trials_data_folder = Path(task_config["data_paths"]["trials"]).resolve()
-eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
 
 if not trials_data_folder.exists():
-    trials_data_folder.mkdir(parents=True)
-    
+    trials_data_folder.mkdir(parents=True, exist_ok=True)
+
+eyetracking_data_folder = Path(task_config["data_paths"]["eyetracking"]).resolve()
+
 if not eyetracking_data_folder.exists():
     eyetracking_data_folder.mkdir(parents=True)
 
@@ -68,7 +70,7 @@ print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 selected_timepoint = timepoint[0]  # Get the first item from the list
 
 # Name for output data
-fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
+fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
 # Experiment handler
 exp = data.ExperimentHandler(
@@ -77,20 +79,10 @@ exp = data.ExperimentHandler(
     dataFileName=str(trials_data_folder / fileName),
 )
 
-# Define TrialHandler for managing trial-level data
-trials = data.TrialHandler(
-    nReps=1,  # Number of repetitions for the trial set
-    method='sequential',  # Can also be 'random' for randomized trials
-    trialList=None,  # If you have predefined trial conditions, you can specify them here
-    name='trials'  # Name of the trial set
-)
-
-# Add the TrialHandler to the ExperimentHandler
-exp.addLoop(trials)
-
 # testmode options
 # testmode_et = TRUE mimics an eye-tracker by mouse movement, FALSE = eye-tracking hardware is required and adressed with tobii_research module
 testmode_et = config["constants"]["eyetracker"]["testmode"]
+print(f"Test Mode (testmode_et): {testmode_et}") 
 sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
 background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
 size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
@@ -122,37 +114,40 @@ win = visual.Window(
 refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
-# Set frame duration based on 60Hz refresh rate
-frame_duration = 1.0/60.0  # 16.67ms per frame
+# frame duration based on monitor refresh rate
+frame_duration = 1/refresh_rate
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
-if testmode_et:
-    logging.info(' TESTMODE = TRUE')
-    print('mouse is used to mimick eyetracker...')
+if testmode_et:  # Use mouse in test mode
+    print('Mouse is used to mimic eye tracker...')
     iohub_config = {'eyetracker.hw.mouse.EyeTracker': {'name': 'tracker'}}
-if not testmode_et:
+else:  # Otherwise, initialize actual eye tracker
     logging.info('TESTMODE = FALSE')
-    # Search for eye tracker:
+    # Search for the eye tracker
     found_eyetrackers = tr.find_all_eyetrackers()
-    my_eyetracker = found_eyetrackers[0]
-    print("Address: " + my_eyetracker.address)
-    logging.info(' ADDRESS: ' f'{my_eyetracker.address}')
-    print("Model: " + my_eyetracker.model)
-    logging.info(' Model: ' f'{my_eyetracker.model}')
-    print("Name (It's OK if this is empty): " + my_eyetracker.device_name)
-    logging.info(' Name (It is OK if this is empty): ' f'{my_eyetracker.device_name}')
-    print("Serial number: " + my_eyetracker.serial_number)
-    logging.info(' Serial number: ' f'{my_eyetracker.serial_number}')
-    # Define a config that allow iohub to connect to the eye-tracker:
-    iohub_config = {'eyetracker.hw.tobii.EyeTracker':
-        {'name': 'tracker', 'runtime_settings': {'sampling_rate': sampling_rate, }}}
+    if found_eyetrackers:
+        my_eyetracker = found_eyetrackers[0]
+        print("Address: " + my_eyetracker.address)
+        logging.info(f'ADDRESS: {my_eyetracker.address}')
+        print("Model: " + my_eyetracker.model)
+        logging.info(f'Model: {my_eyetracker.model}')
+        print("Name (It's OK if this is empty): " + my_eyetracker.device_name)
+        logging.info(f'Name: {my_eyetracker.device_name}')
+        print("Serial number: " + my_eyetracker.serial_number)
+        logging.info(f'Serial number: {my_eyetracker.serial_number}')
+        # Define a config that allows iohub to connect to the actual eye tracker:
+        iohub_config = {'eyetracker.hw.tobii.EyeTracker':
+                        {'name': 'tracker', 'runtime_settings': {'sampling_rate': sampling_rate}}}
+    else:
+        logging.error('No eye tracker found.')
+        print('No eye tracker found!')
     
 # IOHUB creates a different instance that records eye tracking data in hdf5 file saved in datastore_name:
 io = launchHubServer(**iohub_config,
                         experiment_code = str(eyetracking_data_folder),
-                        session_code = fileName,
-                        datastore_name = str(eyetracking_data_folder / fileName), #where data is stored
+                        session_code = str(fileName),
+                        datastore_name = str(eyetracking_data_folder / str(fileName)), #where data is stored
                         window = win)
 
 # Call the eyetracker device and start recording - different instance:
@@ -270,22 +265,26 @@ kb = keyboard.Keyboard()
 # Check for keypresses, used to pause and quit experiment:
 def check_keypress():
     global current_screen
-    keys = kb.getKeys(['p','escape'], waitRelease = True)
+    keys = kb.getKeys(['p','escape'], clear = True)
     timestamp_keypress = clock.getTime()
 
     if 'escape' in keys:
+        print("Escape key detected! Showing quit dialog.")  # Debugging
         current_screen = DIALOG_SCREEN
         dlg = gui.Dlg(title='Quit?', labelButtonOK=' OK ', labelButtonCancel=' Cancel ')
         dlg.addText('Do you really want to quit? - Then press OK')
         dlg.screen = 1 
         ok_data = dlg.show()  # show dialog and wait for OK or Cancel
+
         if dlg.OK:  # or if ok_data is not None
             print('EXPERIMENT ABORTED!')
             core.quit()
         else:
             print('Experiment continues...')
             current_screen = PRESENTATION_SCREEN
+
         pause_time = clock.getTime() - timestamp_keypress
+
     elif 'p' in keys:
         current_screen = DIALOG_SCREEN
         dlg = gui.Dlg(title='Pause', labelButtonOK='Continue')
@@ -296,9 +295,9 @@ def check_keypress():
         print(f"Paused for {pause_time:.3f} seconds")
         current_screen = PRESENTATION_SCREEN 
     else:
-        pause_time = 0
-    pause_time = round(pause_time,3)
-    return pause_time
+        pause_time =0
+        pause_time = round(pause_time,3) if pause_time else 0
+    return pause_time 
 
 def oddball_gazecontingent(oddball_object, duration_in_seconds, background_color=background_color_rgb):
     """
@@ -366,8 +365,8 @@ def oddball_gazecontingent(oddball_object, duration_in_seconds, background_color
     logging.info(' GAZE OFFSET DURATION: ' f'{gaze_offset_isi_duration}')
     print('Pause duration: ' + str(pause_isi_duration))
     logging.info(' PAUSE DURATION: ' f'{pause_isi_duration}')
-    print('Actual oddball duration: ' + str(actual_isi_duration))
-    logging.info(' ACTUAL ODDBALL DURATION: ' f'{actual_isi_duration}')
+    print('Actual trial duration: ' + str(actual_isi_duration))
+    logging.info(' ACTUAL Trial DURATION: ' f'{actual_isi_duration}')
     
     return [actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration]
 
@@ -383,9 +382,9 @@ ISI_DURATION = 1500 / 1000  # 1500ms
 FIXATION_TIME = 5  # 10s fixation cross
 
 # ==== Trial Structure ====
-TOTAL_TRIALS = 30 # adjust to 110 for real experiment
-STANDARD_RATIO = 0.77
-ODDBALL_RATIO = 0.23
+TOTAL_TRIALS = 75 
+STANDARD_RATIO = 0.8
+ODDBALL_RATIO = 0.2
 
 STANDARD_TRIALS = int(TOTAL_TRIALS * STANDARD_RATIO)
 print(f"Standard trials: {STANDARD_TRIALS}")
@@ -406,15 +405,6 @@ fixation = visual.ShapeStim(
     closeShape=False,
     lineColor="black"
     )
-
-def show_fixation():
-    
-    iti_frames = int(FIXATION_TIME/ refresh_rate) # duration measured in frames
-    print(f"ITI Frames: {iti_frames}")  
-    for _ in range(iti_frames):
-        fixation.draw()
-        win.flip()
-
 
 def create_trial_sequence():
     """
@@ -457,25 +447,8 @@ def create_trial_sequence():
 def run_trial(trial_type):
     nodata_stimulus = 0
     logging.info(f'Running trial type: {trial_type}')
-    
-    stimulus = standard if trial_type == 'standard' else oddball
-    trial_start_time = core.getTime()
-
-    # Calculate total number of frames for stimulus duration
-    stimulus_frames = int(STIMULUS_DURATION / refresh_rate)  # e.g., 60 Hz → 6 frames for 100ms
-    stimulus_start = core.getTime()
-
-    for _ in range(stimulus_frames):
-        stimulus.draw()
-        
-        # Track missing gaze data (if applicable)
-        if check_nodata(tracker.getPosition()):  
-            nodata_stimulus += frame_duration  # Accumulate missing data time
-        
-        win.flip()  # Flip the window each frame to show the stimulus
-
-    stimulus_end = core.getTime()
-    stimulus_duration = round(stimulus_end - stimulus_start, 3)
+    timestamp_exp = core.getTime()
+    trial_start_time = timestamp_exp
 
     # Show blank screen for ISI (Inter-Stimulus Interval)
     blank_screen = visual.Rect(
@@ -485,41 +458,48 @@ def run_trial(trial_type):
         fillColor=background_color_rgb,
         units='norm'
     )
-    
     # Call the gaze-contingent function during ISI and pass the blank screen and ISI duration
     actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = oddball_gazecontingent(
         blank_screen, ISI_DURATION, background_color=background_color_rgb
     )
+    
+    stimulus = standard if trial_type == 'standard' else oddball
+   
+    # Calculate total number of frames for stimulus duration
+    stimulus_frames = int(STIMULUS_DURATION / refresh_rate)  # e.g., 60 Hz → 6 frames for 100ms
+    stimulus_start = core.getTime()
+
+    for _ in range(stimulus_frames):
+        stimulus.draw()
+        
+        # Track missing gaze data (if applicable)
+        if check_nodata(tracker.getPosition()):  
+            nodata_stimulus += refresh_rate # Accumulate missing data time
+        
+        win.flip()  # Flip the window each frame to show the stimulus
+
+    stimulus_end = core.getTime()
+    stimulus_duration = round(stimulus_end - stimulus_start, 3)
 
     trial_end_time = core.getTime()
     trial_duration = round(trial_end_time - trial_start_time, 3)
 
-    return stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration,gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration
+    return timestamp_exp, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration,gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration
 
 # ==== Main Experiment Function ====
 def run_experiment():
+    trial_counter = 0
+    baseline_trial_counter = 0
+
     logging.info('Starting experiment')
+    start_time = core.getTime()
     
-    trial_sequence = ['fixation'] + create_trial_sequence()
+    trial_sequence = ['baseline_fixation'] + create_trial_sequence()
     trials = data.TrialHandler(
         nReps=1,
         method='sequential',
         trialList=[{'condition': trial_type} for trial_type in trial_sequence],
-        dataTypes=[
-            'trial_number',
-            'condition',
-            'stimulus_duration',
-            'actual_isi_duration',
-            'gaze_offset_isi_duration',
-            'pause_isi_duration',
-            'nodata_isi_duration',
-            'trial_duration',
-            'fixation_duration',
-            'fixation_actual_isi_duration',
-            'fixation_gaze_offset_duration',
-            'fixation_pause_duration',
-            'fixation_nodata_duration'
-        ]
+        
     )
     
     exp.addLoop(trials)
@@ -529,24 +509,28 @@ def run_experiment():
         for thisTrial in trials:
             trial_type = thisTrial['condition']
             
-            if trial_type == 'fixation':
-                fixation_start = core.getTime()
+            if trial_type == 'baseline_fixation':
+                timestamp_exp = core.getTime()
+                baseline_fixation_start = core.getTime()
                 
                 actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
                     fixation, FIXATION_TIME, background_color=background_color_rgb
                 )
                 
-                fixation_end = core.getTime()
-                fixation_duration = round(fixation_end - fixation_start, 3)
+                baseline_fixation_end = core.getTime()
+                baseline_fixation_duration = round(baseline_fixation_end - baseline_fixation_start, 3)
                 
-                trials.addData('trial_number_', trials.thisN + 1)
-                trials.addData('condition', 'fixation')
-                trials.addData('fixation_duration', fixation_duration)
-                trials.addData('fixation_actual_isi_duration', actual_fixation_duration)
-                trials.addData('fixation_gaze_offset_duration', gaze_offset_fixation)
-                trials.addData('fixation_pause_duration', pause_fixation)
-                trials.addData('fixation_nodata_duration', nodata_fixation)
+                trials.addData('baseline_trial_number', baseline_trial_counter+1)  
+                #trials.addData('condition', 'baseline_fixation')
+                trials.addData('timestamp_exp', timestamp_exp)
+                trials.addData('expected_baseline_fixation_duration', FIXATION_TIME)
+                trials.addData('baseline_fixation_duration', baseline_fixation_duration)
+                trials.addData('baseline_fixation_actual_duration', actual_fixation_duration)
+                trials.addData('baseline_fixation_gaze_offset_duration', gaze_offset_fixation)
+                trials.addData('baseline_fixation_pause_duration', pause_fixation)
+                trials.addData('baseline_fixation_nodata_duration', nodata_fixation)
                 
+                baseline_trial_counter += 1  # Increment after each trial
                 exp.nextEntry()
                 continue
 
@@ -554,33 +538,68 @@ def run_experiment():
             trial_start = core.getTime()
 
             # Run the trial using only run_trial function
-            stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = run_trial(trial_type)
+            timestamp_exp, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = run_trial(trial_type)
 
             # Save trial data
-            trials.addData('trial_number', trials.thisN)
-            #trials.addData('condition', trial_type)
+            trials.addData('trial_number', trial_counter+1)  # Ensuring unique numbering
+            trials.addData('timestamp_exp', timestamp_exp)
             trials.addData('stimulus_duration', stimulus_duration)
-            trials.addData('nodata_stimulus', nodata_stimulus)
+            trials.addData('nodata_stimulus', round(nodata_stimulus,3))
             trials.addData('trial_duration', trial_duration)
+            trials.addData('expected_isi_duration', ISI_DURATION)
             trials.addData('gaze_offset_isi_duration', gaze_offset_isi_duration)
             trials.addData('pause_isi_duration', pause_isi_duration)
             trials.addData('nodata_isi_duration', nodata_isi_duration)
             trials.addData('actual_isi_duration', actual_isi_duration)
 
+            trial_counter += 1  # Increment after each trial
             exp.nextEntry()
 
-        print("\nExperiment Completed")
-        print(f"Total duration: {core.getTime() - trial_start:.2f} seconds")
+            print(f"Trial duration timestamp: {core.getTime() - trial_start:.2f} seconds")
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        traceback.print_exc()
+        print("\nAdding final fixation baseline...")
+        timestamp_exp = core.getTime()
+        fixation_start = core.getTime()
+        
+        actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
+            fixation, FIXATION_TIME, background_color=background_color_rgb
+        )
+        
+        fixation_end = core.getTime()
+        fixation_duration = round(fixation_end - fixation_start, 3)
+        
+        trials.addData('trial_number', trial_counter + 1)
+        trials.addData('condition', 'final_baseline_fixation')
+        trials.addData('timestamp_exp', timestamp_exp)
+        trials.addData('expected_baseline_fixation_duration', FIXATION_TIME)
+        trials.addData('baseline_fixation_duration', fixation_duration)
+        trials.addData('baseline_fixation_actual_duration', actual_fixation_duration)
+        trials.addData('baseline_fixation_gaze_offset_duration', gaze_offset_fixation)
+        trials.addData('baseline_fixation_pause_duration', pause_fixation)
+        trials.addData('baseline_fixation_nodata_duration', nodata_fixation)
+        
+        exp.nextEntry()
+  
+
+        print("\nExperiment Completed")
+        print(f"Total task duration: {core.getTime() - start_time:.2f} seconds")
+
     finally:
-        trials.saveAsWideText(fileName, appendFile=True)
-        exp.saveAsPickle(fileName)
-        logging.info('Experiment completed')
-        win.close()
-        core.quit()
+        print ("Saving data...")
+        # print("Column names before saving:", trials.data.keys())      
+        try:
+            trials.saveAsWideText(str(trials_data_folder / fileName))
+            #exp.saveAsPickle(str(fileName))
+        except Exception as e:
+       # print(f"Error while saving:{e}")
+
+            # Close reading from eyetracker:
+            tracker.setRecordingState(False)
+            # Close iohub instance:
+            io.quit()
+            win.close()
+            core.quit()
+
 
 # Start the experiment
 if __name__ == '__main__':

@@ -119,7 +119,7 @@ refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
 # Set frame duration based on 60Hz refresh rate
-frame_duration = 1.0/60.0  # 16.67ms per frame
+frame_duration = 1.0/refresh_rate # 16.67ms per frame
 
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
@@ -417,15 +417,17 @@ trial_counter = 0
 trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
 exp.addLoop(trials)
 
-fixation_start = time.time()
+timestamp_exp = core.getTime()
+fixation_start = core.getTime()
 
 actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
     fixation, FIXATION_TIME, background_color=background_color_rgb
 )
-fixation_end = time.time()
+fixation_end = core.getTime()
 fixation_duration = round(fixation_end - fixation_start, 3)
 
 # Save fixation baseline data separately
+exp.addData('timestamp_exp', timestamp_exp)
 exp.addData('baseline_fixation_start_timestamp', fixation_start)
 exp.addData('baseline_fixation_end_timestamp', fixation_end)
 exp.addData('baseline_fixation_duration', fixation_duration)
@@ -442,7 +444,8 @@ for trial in range(num_trials):
     nodata_visual_search = 0
     print(f"Starting trial {trial + 1}")
 
-    trial_start_time = time.time()
+    timestamp_exp = core.getTime()
+    trial_start_time = timestamp_exp
     trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
@@ -509,12 +512,13 @@ for trial in range(num_trials):
 
     if auditory_cue:
         pause_cue_duration=0
+        beep_start_time=0
         pause_cue_duration += check_keypress()
         delay_frames = int(random.uniform(0, 0.1) / frame_duration)
         beep_frames = int(random.uniform(0.2, 0.3) / frame_duration)
         total_frames = int(0.4 / frame_duration)
         remaining_frames = total_frames - (delay_frames + beep_frames)
-        beep_start_time_unix= None
+        
 
         delay_duration = round(delay_frames * frame_duration, 3)
 
@@ -528,7 +532,7 @@ for trial in range(num_trials):
 
         # Play beep
         beep_start_time = core.getTime()
-        beep_start_time_unix = time.time()
+        
         next_flip = win.getFutureFlipTime(clock='ptb')
         beep.play(when=next_flip)
         for frame in range(beep_frames):
@@ -625,9 +629,10 @@ for trial in range(num_trials):
     win.flip()
 
     # ---  SAVE TRIAL DATA ---
-    trial_end_time = time.time()
+    trial_end_time = core.getTime()
     trial_duration = trial_end_time - trial_start_time
 
+    trials.addData('timestamp_exp', timestamp_exp)
     trials.addData('trial_start_timestamp', trial_start_time)
     trials.addData('trial_end_timestamp', trial_end_time)
     trials.addData('trial_number', trial + 1)
@@ -641,7 +646,7 @@ for trial in range(num_trials):
     trials.addData('pause_anim_duration', pause_anim_duration) # from gazecontingent function
     trials.addData('nodata_anim_duration', nodata_anim_duration) # from gazecontingent function
     trials.addData('auditory_cue', auditory_cue)
-    trials.addData('timestamp_beep', round(beep_start_time_unix,3))
+    trials.addData('timestamp_beep', round(beep_start_time,3))
     trials.addData('actual_beep_duration', beep_duration)
     trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
     trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
