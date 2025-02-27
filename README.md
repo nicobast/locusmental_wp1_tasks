@@ -29,8 +29,6 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
   3. Tobii Pro SDK as Tobii Research Python module: pip install tobii_research
   4. Verify installation of Psychopy and Numpy using: pip list
   5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
-## Running Animations
-To run animation files, you need the module Manim. For better compatibility, it is recommended to use a separate virtual environment with a newer Python version (e.g., Python 3.11). Avoid installing Manim and Psychopy in the same environment due to dependency conflicts.
 
 ## Submodule iohub
  * Issue: during task execution, an error in one of the module files occured prevented the recording of gaze data.
@@ -56,11 +54,13 @@ To run animation files, you need the module Manim. For better compatibility, it 
 * then run in CMD: "C:\Program Files\PsychoPy\python.exe" "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball_core.py"
 
 ## Monitor and display settings
-Monitor parameters are adapted to the presentation PC. The name is saved with psychopy monitor manager. Please note:
-* avoid integrated graphics for experiment computers wherever possible as no accurate frame timing
-* set Windows scaling to 100% - otherwise onscreen units will not get right
-* experiment screen will be FUllHD, thus testscreen is specified accordingly
-* Screen resolution is 1920/1080.
+
+Monitor settings are configured in the experiment's config.json file. This file contains all paths, device settings,audio and monitor configurations, ensuring that the experiment is set up correctly for the presentation PC. Please note the following:
+
+ * Device Configuration: All device settings, including monitor parameters, are defined in the config.json file. The monitor name is saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
+ * Avoid Integrated Graphics: It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
+ * Windows Scaling: Set the Windows scaling to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
+ * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 1920x1080. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
@@ -71,6 +71,10 @@ Monitor parameters are adapted to the presentation PC. The name is saved with ps
 
   Modify the config.json file:
   * Adjust the following settings based on your setup:
+      - Modify path to environment accordingly
+          - If your environment is set up outside of the project folder, the task will not run correctly. Adjust the paths in the config.json to point to the correct directories. The paths in this file need to be accurate to avoid errors in loading resources or devices.
+          - If your environment is in the your project folder, then you can modify the config.json and delete the environment and task paths.
+      - Modify paths to tasks accordingly
       - Monitor & Audio Settings: Configure display and sound settings as needed.
       - Testmode: TRUE/FALSE testmode depending on your requirements(eyetracker available or not)
 
@@ -78,13 +82,15 @@ Monitor parameters are adapted to the presentation PC. The name is saved with ps
       - Execute the Runner script.
       - Update the paths in the script to match your environment's directory structure.
 
+  * Run one task
+    - If you want to run only one specific task in the experiment, you can do so by modifying the tasks[] list in the runner.py file. To exclude a task from being executed, simply add a '#' symbol in front of the task name in the tasks[] list. This will comment out the task, and it will not be run when you execute the script.
+
 ## The Auditory Oddball Task
 The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. In four task blocks, each including 100 trials, a frequent tone (standard) is presented with a probability of 80% while an infrequent tone of a different pitch (oddball) is presented with a probability of 20%. The pitch level indicating oddballs in the 1st task block and the 3rd task block (oddball blocks) are either 500 Hz or 750 Hz. Oddballs in the 2nd and 4th task block are of the opposite pitch (oddball blocks reverse). Three additional standard trials precede each task block.  
 
 ### Task sequence
-1. baseline calibration
-2. oddball block
-3. baseline phase
+1. oddball block
+2. baseline fixation
 
 ## The Visual Oddball Task
 The task is used and to observe effects of task utility and stimulus salience. It contains independent manipulations of both.The task consists of 110 trials (currently set to 30 for testing purposes). A frequent blue circle is presented with a probability of 77% (standard trials), while an infrequent larger blue circle (oddball trials) appears with a probability of 23%. Oddball trials are designed to be presented only after at least two standard trials. The task begins with a fixation cross displayed for 10 seconds.
@@ -108,9 +114,6 @@ The task is used and to observe effects of task utility and stimulus salience. I
 ## For the Animations
   * The animations are pre-rendered and stored in the project directory: .\Media\Videos\1080x60.
   * You need to either download the animations or clone them with the repository.
-* If you want to render the animations from the animation-cued-visual-search.py script:
-  * The rendered videos will be stored in the same location (.\Media\Videos\1080p60).
-  * After rendering, select the videos you want to use and rename them sequentially from 1 to 18, otherwise you need to adjust the code in the task
 
 ## Before running the task
   * Create folders in your project directory if not existing data\cued_visual_search\logging_data
