@@ -12,10 +12,10 @@ from psychopy.iohub import launchHubServer
 from psychopy.hardware import keyboard
 from psychopy.monitors import Monitor
 # For playing sound:
-from psychopy import prefs
-prefs.hardware['audioLib'] = ['ptb'] # PTB described as highest accuracy sound class
-prefs.hardware['audioDevice'] = 'Realtek HD Audio 2nd output (Realtek(R) Audio)' # define audio device - DEVICE SPECIFIC
-prefs.hardware['audioLatencyMode'] = 3 # high sound priority, low latency mode
+#from psychopy import prefs
+#prefs.hardware['audioLib'] = ['ptb'] # PTB described as highest accuracy sound class
+#prefs.hardware['audioDevice'] = 'Realtek HD Audio 2nd output (Realtek(R) Audio)' # define audio device - DEVICE SPECIFIC
+#prefs.hardware['audioLatencyMode'] = 3 # high sound priority, low latency mode
 from psychopy import sound
 import psychtoolbox as ptb #sound processing via ptb
 # For managing paths:
@@ -100,12 +100,10 @@ ISI_interval = [1800, 2000]
 # Sensitivity: Warning of gaze offset from the center.
 gaze_offset_cutoff = 3 * size_fixation_cross_in_pixels
 
-white_slide = 'white'
-black_slide = 'black'
-manipulation_repetition = 5 
+#manipulation_repetition = 5 
 # Presentation duration of baseline screen, in seconds.
 baseline_duration = 5
-baseline_calibration_repetition = 1 
+ 
 # After 500 ms the no_data detection warning should be displayed on the screen.no_data_warning_cutoff = 0.5
 no_data_warning_cutoff = 0.5
 # Settings are stored automatically for each trial.
@@ -154,9 +152,6 @@ mywin = visual.Window(
 
 refresh_rate = mywin.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
-
-# Set frame duration based on 60Hz refresh rate
-frame_duration = 1.0/60.0  # 16.67ms per frame
 
 # Two different sound frequencies (conditions) are balanced across groups and
 # saved in the settings dictionary:
@@ -505,9 +500,9 @@ def define_ISI_interval():
 # Loop of block is added to experiment handler.
 # Any data that is collected will be transferred to experiment handler automatically.
 phase_sequence = [
-    'baseline_calibration',
-    'oddball_block',
-    'baseline']
+    'baseline',
+    'oddball_block'
+    ]
 
 phase_handler = data.TrialHandler(phase_sequence,nReps = 1, method = 'sequential') 
 exp.addLoop(phase_handler) 
@@ -557,7 +552,7 @@ for phase in phase_handler:
             # Save data in .csv file:
             # Information about each phase:
             phase_handler.addData('phase', phase)
-            phase_handler.addData('block_counter', block_counter)
+            #phase_handler.addData('block_counter', block_counter)
             # Information about each trial: 
             trials.addData('oddball_trial_counter', standard_trial_counter)
             trials.addData('trial', standard) 
@@ -580,7 +575,7 @@ for phase in phase_handler:
         for trial in trials:
             ISI = define_ISI_interval() 
             timestamp = time.time() 
-            timestamp_exp = core.getTime() 
+            timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
             print('NEW TRIAL')
             logging.info(' NEW TRIAL')
@@ -595,7 +590,7 @@ for phase in phase_handler:
             # Save data in .csv file:
             # Information about each phase:
             phase_handler.addData('phase', phase)
-            phase_handler.addData('block_counter', block_counter)
+            #phase_handler.addData('block_counter', block_counter)
             # Information about each trial:
             trials.addData('oddball_trial_counter',oddball_trial_counter) 
             trials.addData('trial', trial) 
@@ -616,13 +611,13 @@ for phase in phase_handler:
         print('START OF BASELINE PHASE')
         logging.info(' START OF BASELINE PHASE')
         timestamp = time.time() 
-        timestamp_exp = core.getTime() 
+        timestamp_exp = core.getTime()
         [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
 
         # Save data in .csv file:
         # Informatiom about each phase:
         phase_handler.addData('phase', phase)
-        phase_handler.addData('block_counter', block_counter)
+        #phase_handler.addData('block_counter', block_counter)
         # Information about each trial:
         phase_handler.addData('stimulus_duration', stimulus_duration)
         phase_handler.addData('gaze_offset_duration', offset_duration)
@@ -636,83 +631,6 @@ for phase in phase_handler:
         baseline_trial_counter += 1
         exp.nextEntry()
 
-    # During calibration process, pupil dilation (black slide) and
-    # pupil constriction (white slide) are assessed.
-    if phase == 'baseline_calibration':
-        # Setup experimental manipulation:
-        baseline_sequence = ['baseline','baseline_whiteslide','baseline_blackslide']
-        baseline_calibration_repetition = baseline_calibration_repetition
-        exp_baseline_calibration = data.TrialHandler(baseline_sequence,nReps = baseline_calibration_repetition, method='sequential') 
-        exp.addLoop(exp_baseline_calibration) 
-        print('START OF BASELINE CALIBRATION PHASE')
-        logging.info(' START OF BASELINE CALIBRATION PHASE')
-
-        for baseline_trial in baseline_sequence:
-            if baseline_trial == 'baseline':
-                timestamp = time.time() 
-                timestamp_exp = core.getTime()
-                [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
-
-                # Save data in .csv file:
-                # Information about each phase:
-                phase_handler.addData('phase', phase)
-                phase_handler.addData('block_counter', block_counter)
-                # Information about each trial:
-                phase_handler.addData('stimulus_duration', stimulus_duration)
-                phase_handler.addData('gaze_offset_duration', offset_duration)
-                phase_handler.addData('trial_pause_duration', pause_duration)
-                phase_handler.addData('trial_nodata_duration', nodata_duration)
-                phase_handler.addData('baseline_trial_counter',baseline_trial_counter)
-                phase_handler.addData('trial', baseline_trial)
-                phase_handler.addData('timestamp', timestamp)
-                phase_handler.addData('timestamp_exp', timestamp_exp)
-
-                baseline_trial_counter += 1
-                exp.nextEntry()
-
-            # Present baseline with white background:
-            if baseline_trial == 'baseline_whiteslide':
-                timestamp = time.time() 
-                timestamp_exp = core.getTime()
-                [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration, background_color = white_slide)
-
-                # Save data in .csv file:
-                # Information about each phase:
-                phase_handler.addData('phase', phase)
-                phase_handler.addData('block_counter', block_counter)
-                # Information about each trial:
-                phase_handler.addData('stimulus_duration', stimulus_duration)
-                phase_handler.addData('gaze_offset_duration', offset_duration)
-                phase_handler.addData('trial_pause_duration', pause_duration)
-                phase_handler.addData('trial_nodata_duration', nodata_duration)
-                phase_handler.addData('baseline_trial_counter',baseline_trial_counter)
-                phase_handler.addData('trial', baseline_trial)
-                phase_handler.addData('timestamp', timestamp)
-                phase_handler.addData('timestamp_exp', timestamp_exp)
-
-                exp.nextEntry()
-
-            if baseline_trial == 'baseline_blackslide':
-                timestamp = time.time() 
-                timestamp_exp = core.getTime()
-                # Present baseline with black background:
-                [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration, background_color = black_slide, cross_color = 'grey')
-
-                # Save data in .csv file:
-                # Information about each phase:
-                phase_handler.addData('phase', phase)
-                phase_handler.addData('block_counter', block_counter)
-                # Information about each trial:
-                phase_handler.addData('stimulus_duration', stimulus_duration)
-                phase_handler.addData('gaze_offset_duration', offset_duration)
-                phase_handler.addData('trial_pause_duration', pause_duration)
-                phase_handler.addData('trial_nodata_duration', nodata_duration)
-                phase_handler.addData('baseline_trial_counter',baseline_trial_counter)
-                phase_handler.addData('trial', baseline_trial)
-                phase_handler.addData('timestamp', timestamp)
-                phase_handler.addData('timestamp_exp', timestamp_exp)
-
-                exp.nextEntry()
 
    # logging.info(f"Saving data to: {trials_data_folder / fileName}")
    # exp.saveAsWideText(str(trials_data_folder / fileName), delim=",")   
