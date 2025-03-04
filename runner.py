@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 import json
 
-with open("C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/config.json", "r") as file:
+battery_start_time = core.getTime()
+
+with open("config.json", "r") as file:
     config = json.load(file)
 
 venv_python = Path(config["python_env"]["venv_path"]).resolve()
@@ -27,7 +29,7 @@ else:
     print(f"Directory {logging_path} already exists. Continuing to use it.")
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, filename="experiment_log.txt", filemode="w",
+logging.basicConfig(level=logging.INFO, filename=filename_runner, filemode="w",
                     format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Create a dialog box for participant info
@@ -54,17 +56,22 @@ logging.info(f"Timepoint: {timepoint}")
 
 # List of tasks to run in sequence
 tasks = [
-    #"auditory_oddball",
+    "auditory_oddball",
     "cued_visual_search",
-    #"rapid_sound_sequences",
-    #"visual_oddball"
+    "rapid_sound_sequences",
+    "visual_oddball"
 ]
 
 def run_task(task_name, task_path):
+    task_start_time = core.getTime()
     logging.info(f"Starting task: {task_name}")
     print(f"Running {task_name}...")
     
     subprocess.run([str(venv_python), str(task_path), participant_id, timepoint])
+
+    task_end_time = core.getTime()  # End time for individual task
+    task_duration = task_end_time - task_start_time
+    logging.info(f"Finished task: {task_name} (Duration: {task_duration:.3f} seconds)")
 
     logging.info(f"Finished task: {task_name}")
     print("Pausing for 10 seconds before the next task...\n")
@@ -76,6 +83,12 @@ for task_name in tasks:  # Run only selected tasks in this order
         run_task(task_name, task_paths[task_name])
     else:
         logging.warning(f"Task {task_name} not found in config.") 
+        # Calculate total battery duration
+
+battery_end_time = core.getTime()
+total_duration = battery_end_time - battery_start_time
+logging.info(f"Total battery duration: {total_duration:.3f} seconds")
+print(f"\nTotal battery duration: {total_duration:.3f} seconds")
 
 print("All tasks completed!")
 logging.info("All tasks completed.")

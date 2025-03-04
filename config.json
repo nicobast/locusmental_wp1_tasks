@@ -1,13 +1,14 @@
 {
 
     "python_env": {
-        "venv_path": "C:/Users/iskra_todorova/PowerFolders/CodeTests/venv310/Scripts/python.exe"
+        "venv_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/battery_venv/Scripts/python.exe"
     },
+    "task_base_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/",
     "task_paths": {
-        "visual_oddball": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/visual_oddball.py",
-        "cued_visual_search": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/cued-visual-search-animation.py",
-        "auditory_oddball": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/auditory_oddball.py",
-        "rapid_sound_sequences": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/rapid-sound-sequences.py"
+        "visual_oddball": "visual_oddball.py",
+        "cued_visual_search": "cued-visual-search-animation.py",
+        "auditory_oddball": "auditory_oddball.py",
+        "rapid_sound_sequences": "rapid-sound-sequences.py"
     },
     "constants": {
         "monitor": {
