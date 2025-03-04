@@ -509,6 +509,7 @@ exp.addLoop(phase_handler)
 
 # Global variables:
 block_counter = 0
+trial_counter = 0
 baseline_trial_counter = 1
 
 oddball_trial_counter = 1 # trials in oddball_blocks
@@ -539,7 +540,7 @@ for phase in phase_handler:
             timestamp = time.time()
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-            print('NEW TRIAL')
+            print(f'\nTRIAL {trial_counter} ({standard.upper()})')
             logging.info(' NEW TRIAL')
             print("ISI: ", ISI)
             logging.info(' ISI: ' f'{ISI}')
@@ -566,6 +567,7 @@ for phase in phase_handler:
             trials.addData('timestamp_exp', timestamp_exp) 
             trials.addData('timestamp_tracker', timestamp_tracker)
             
+            trial_counter += 1
             standard_trial_counter += 1
             exp.nextEntry()
 
@@ -577,7 +579,7 @@ for phase in phase_handler:
             timestamp = time.time() 
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-            print('NEW TRIAL')
+            print(f'\nTRIAL {trial_counter} ({trial.upper()})')  
             logging.info(' NEW TRIAL')
             print("ISI: ",ISI)
             logging.info(' ISI: ' f'{ISI}')
@@ -604,6 +606,7 @@ for phase in phase_handler:
             trials.addData('trial_pause_duration', pause_duration)
             trials.addData('trial_nodata_duration', nodata_duration)
 
+            trial_counter += 1
             oddball_trial_counter += 1
             exp.nextEntry()
 

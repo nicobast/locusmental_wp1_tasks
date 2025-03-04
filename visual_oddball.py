@@ -114,9 +114,6 @@ win = visual.Window(
 refresh_rate = win.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
-# frame duration based on monitor refresh rate
-frame_duration = 1/refresh_rate
-
 # SETUP EYETRACKING:
 # Output gazeposition is alwys centered, i.e. screen center = [0,0].
 if testmode_et:  # Use mouse in test mode
@@ -356,18 +353,7 @@ def oddball_gazecontingent(oddball_object, duration_in_seconds, background_color
     actual_isi_duration = round(core.getTime() - timestamp, 3)
     gaze_offset_isi_duration = round(gaze_offset_isi_duration, 3)
     nodata_isi_duration = round(nodata_isi_duration, 3)
-    
-    print('Number of frames: ' + str(number_of_frames))
-    logging.info(' NUMBER OF FRAMES: ' f'{number_of_frames}')
-    print('No data duration: ' + str(nodata_isi_duration))
-    logging.info(' NO DATA DURATION: ' f'{nodata_isi_duration}')
-    print('Gaze offset duration: ' + str(gaze_offset_isi_duration))
-    logging.info(' GAZE OFFSET DURATION: ' f'{gaze_offset_isi_duration}')
-    print('Pause duration: ' + str(pause_isi_duration))
-    logging.info(' PAUSE DURATION: ' f'{pause_isi_duration}')
-    print('Actual trial duration: ' + str(actual_isi_duration))
-    logging.info(' ACTUAL Trial DURATION: ' f'{actual_isi_duration}')
-    
+       
     return [actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration]
 
 
@@ -400,8 +386,11 @@ oddball = visual.Circle(win, radius=ODDBALL_SIZE / 2, fillColor=STIMULUS_COLOR, 
 
 fixation = visual.ShapeStim(
     win=win,
-    vertices=((0, -80), (0, 80), (0, 0), (-80, 0), (80, 0)),
-    lineWidth=3,
+    vertices=((0, -size_fixation_cross_in_pixels/2), 
+              (0, size_fixation_cross_in_pixels/2), 
+              (0, 0), 
+              (-size_fixation_cross_in_pixels/2, 0), 
+              (size_fixation_cross_in_pixels/2, 0)),
     closeShape=False,
     lineColor="black"
     )
@@ -529,6 +518,15 @@ def run_experiment():
                 trials.addData('baseline_fixation_gaze_offset_duration', gaze_offset_fixation)
                 trials.addData('baseline_fixation_pause_duration', pause_fixation)
                 trials.addData('baseline_fixation_nodata_duration', nodata_fixation)
+
+                # Print relevant information for baseline fixation
+                print(f"\nBaseline Fixation Phase ")
+                print(f"Expected Duration: {FIXATION_TIME} seconds")
+                print(f"Duration from timestamp: {baseline_fixation_duration} seconds")
+                print(f'Duration from function: {actual_fixation_duration}')
+                print(f"Gaze Offset Duration: {gaze_offset_fixation}")
+                print(f"Pause Duration: {pause_fixation}")
+                print(f"No Data Duration: {nodata_fixation}")
                 
                 baseline_trial_counter += 1  # Increment after each trial
                 exp.nextEntry()
@@ -541,7 +539,7 @@ def run_experiment():
             timestamp_exp, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = run_trial(trial_type)
 
             # Save trial data
-            trials.addData('trial_number', trial_counter+1)  # Ensuring unique numbering
+            trials.addData('trial_number', trial_counter +1)  # Ensuring unique numbering
             trials.addData('timestamp_exp', timestamp_exp)
             trials.addData('stimulus_duration', stimulus_duration)
             trials.addData('nodata_stimulus', round(nodata_stimulus,3))
@@ -552,10 +550,21 @@ def run_experiment():
             trials.addData('nodata_isi_duration', nodata_isi_duration)
             trials.addData('actual_isi_duration', actual_isi_duration)
 
+            # Print relevant information for the current stimulus trial
+            print(f"\n-----Trial {trial_counter+1}-----")
+            print(f"Trial Type: {trial_type.capitalize()}")
+            print(f"Stimulus Duration: {stimulus_duration} seconds")
+            print(f"ISI Expected Duration: {ISI_DURATION} seconds")
+            print(f'ISI Actual Duration: {actual_isi_duration}')
+            print(f"Gaze Offset Duration: {gaze_offset_isi_duration}")
+            print(f"Pause Duration: {pause_isi_duration}")
+            print(f"No Data Duration: {nodata_isi_duration}")
+            print(f"Trial Duration: {trial_duration} seconds")
+
             trial_counter += 1  # Increment after each trial
             exp.nextEntry()
 
-            print(f"Trial duration timestamp: {core.getTime() - trial_start:.2f} seconds")
+            print(f"Trial duration timestamp: {core.getTime() - trial_start:.3f} seconds")
 
         print("\nAdding final fixation baseline...")
         timestamp_exp = core.getTime()
@@ -568,7 +577,6 @@ def run_experiment():
         fixation_end = core.getTime()
         fixation_duration = round(fixation_end - fixation_start, 3)
         
-        trials.addData('trial_number', trial_counter + 1)
         trials.addData('condition', 'final_baseline_fixation')
         trials.addData('timestamp_exp', timestamp_exp)
         trials.addData('expected_baseline_fixation_duration', FIXATION_TIME)
@@ -578,11 +586,19 @@ def run_experiment():
         trials.addData('baseline_fixation_pause_duration', pause_fixation)
         trials.addData('baseline_fixation_nodata_duration', nodata_fixation)
         
+         # Print relevant information for final fixation
+        print(f"\nFinal Baseline Fixation")
+        print(f"Expected Duration: {FIXATION_TIME} seconds")
+        print(f"Actual Duration: {fixation_duration} seconds")
+        print(f"Gaze Offset Duration: {gaze_offset_fixation}")
+        print(f"Pause Duration: {pause_fixation}")
+        print(f"No Data Duration: {nodata_fixation}")
+        logging.info(f"Final Baseline Fixation completed")
+
         exp.nextEntry()
   
-
         print("\nExperiment Completed")
-        print(f"Total task duration: {core.getTime() - start_time:.2f} seconds")
+        print(f"Total task duration: {core.getTime() - start_time:.3f} seconds")
 
     finally:
         print ("Saving data...")
@@ -597,6 +613,7 @@ def run_experiment():
             tracker.setRecordingState(False)
             # Close iohub instance:
             io.quit()
+            
             win.close()
             core.quit()
 
