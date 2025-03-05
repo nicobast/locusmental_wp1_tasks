@@ -19,7 +19,7 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
 ## Working with Multiple Python Versions
 * If you have multiple Python versions installed, you can create a virtual environment specifically for Python 3.10 in the terminal:
   * Check the Python version available: python --version
-  * Create a virtual environment using Python 3.10: python3.10 -m venv environment_name
+  * Create a virtual environment using Python 3.10: python3.10 -m venv environment_name (py -3.10 -m venv environment_name)
   * Activate the virtual environment: environment_name\Scripts\activate
 ## Installing Required Modules
  * Installation requires "Microsoft Visual C++ 14.0" bundled with "Microsoft C++ Build Tools" (Desktop Development with C++).
@@ -36,7 +36,7 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
   - Problem Background: The KeyError occurs because the code attempts to access a non-existing key 'right_gaze_origin_in_trackbox_coordinate_system', in the gaze data returned by the Tobii eye tracker. In the tobii-research module, the correct keys are: 'right_gaze_origin_in_user_coordinate_system' instead.
   - Solution: 
     1.  Locate the following file in your Python environment: <Python Environment Directory>lib\site-packages\psychopy\iohub\devices\eyetracker\hw\tobii\eyetracker.py
-    2.  Find lines 432 and 433 and replace them with the following corrected code:
+    2.  Find lines 433 and 434 and replace them with the following corrected code:
         right_gx, right_gy, right_gz = eye_data_event['right_gaze_origin_in_user_coordinate_system']
         left_gx, left_gy, left_gz = eye_data_event['left_gaze_origin_in_user_coordinate_system']
 
@@ -60,7 +60,7 @@ Monitor settings are configured in the experiment's config.json file. This file 
  * Device Configuration: All device settings, including monitor parameters, are defined in the config.json file. The monitor name is saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
  * Avoid Integrated Graphics: It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
  * Windows Scaling: Set the Windows scaling to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
- * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 1920x1080. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
+ * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 2550x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
