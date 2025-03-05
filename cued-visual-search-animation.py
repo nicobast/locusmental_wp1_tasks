@@ -436,7 +436,7 @@ def run_experiment():
     tracker.setRecordingState(True)  
     print("Eye-tracking recording started")
 
-    start_time = core.getTime
+    start_time = core.getTime()
 
      # --- Phase 0: Show Baseline Fixation Cross before trials ---
     show_baseline_fixation()
