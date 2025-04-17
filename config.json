@@ -1,9 +1,9 @@
 {
 
     "python_env": {
-        "venv_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/battery_venv/Scripts/python.exe"
+        "venv_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1/venv_battery/Scripts/python.exe"
     },
-    "task_base_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/",
+    "task_base_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1/",
     "task_paths": {
         "visual_oddball": "visual_oddball.py",
         "cued_visual_search": "cued-visual-search-animation.py",
@@ -19,7 +19,7 @@
             "width_cm": 59.5
         },
         "audio": {
-            "device": "Realtek HD Audio 2nd output (Realtek(R) Audio)",
+            "device": "LG HDR 4K (NVIDIA High Definition Audio)",
             "latency_mode": 3, 
             "Lib":"ptb"
         },
@@ -29,7 +29,7 @@
             "device": "Tobii Pro Spark"
          },
         "psychopy_window": {
-            "fullscreen": true,
+            "fullscreen": false,
             "background_color": [0, 0, 0],
             "size_fixation_cross_in_pixels": 60
         },

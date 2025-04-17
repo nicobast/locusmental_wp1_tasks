@@ -45,14 +45,6 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
     --> run scripts from built-in python instance
   * required eye tracker package for python needs to be installed from CMD as administrator: "C:\Program Files\PsychoPy\python.exe" -m pip install psychopy-eyetracker-tobii
   
-## run task:
-* open project folder with python scripts of experiment, e.g.: "C:\Users\nico\PowerFolders\project_locusmental_wp1"
-* open CMD by typing "cmd" into file browser
-* in CMD execute script of task with standalone psychopy version:
-* requires location of psychopy stanalone version: e.g: "C:\Program Files\PsychoPy\python.exe"
-* requires location of script e.g.: "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball.py"
-* then run in CMD: "C:\Program Files\PsychoPy\python.exe" "C:\Users\nico\PowerFolders\project_locusmental_wp1\auditory_oddball_core.py"
-
 ## Monitor and display settings
 
 Monitor settings are configured in the experiment's config.json file. This file contains all paths, device settings,audio and monitor configurations, ensuring that the experiment is set up correctly for the presentation PC. Please note the following:
@@ -75,8 +67,8 @@ Monitor settings are configured in the experiment's config.json file. This file 
           - If your environment is set up outside of the project folder, the task will not run correctly. Adjust the paths in the config.json to point to the correct directories. The paths in this file need to be accurate to avoid errors in loading resources or devices.
           - If your environment is in the your project folder, then you can modify the config.json and delete the environment and task paths.
       - Modify paths to tasks accordingly
-      - Monitor & Audio Settings: Configure display and sound settings as needed.
-      - Testmode: TRUE/FALSE testmode depending on your requirements(eyetracker available or not)
+      - Monitor & Audio Settings: Configure display and sound settings specific to your device.
+      - Testmode: TRUE/FALSE testmode depending on your requirements (testmode = TRUE uses mouse as gaze information)
 
   * Run the Task
       - Execute the Runner script.
