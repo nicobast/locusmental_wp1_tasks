@@ -62,7 +62,7 @@ participant_id = sys.argv[1]
 timepoint = sys.argv[2]
 print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-selected_timepoint = timepoint[0]  # Get the first item from the list
+selected_timepoint = timepoint # Get the first item from the list
 
 # Name for output data:
 fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
@@ -433,11 +433,13 @@ def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", tri
         # Check for missing data (gaze position is None)
         if check_nodata(gaze_position):
             nodata_stimulus += refresh_rate  # Accumulate missing data time
+            print("Warning: no eyes detected")
             fixation.draw()  # Show fixation during no data
         else:
             if gaze_position is not None:  # Ensure gaze_position is valid before checking offset
                 if check_gaze_offset(gaze_position):
                     gaze_offset_stimuli += refresh_rate  # Accumulate gaze offset time
+                    print("Warning: gaze offset")
                     draw_gazedirect(background_color_rgb)  # Show gaze direction when offset
                 else:
                     fixation.draw()  # Show fixation when gaze is centered
@@ -457,14 +459,31 @@ def generate_sequence(frequency_pool, tone_count, with_replacement=False):
     else:
         return random.sample(frequency_pool, k=tone_count)
     
-def generate_reg1_sequence(frequency_pool):
-    """
-    Generate a REG1 sequence where a single tone is played continuously for 3 seconds.
 
-    :param frequency_pool: The pool of frequencies to choose the tone from.
-    :return: The selected frequency (since it's the same tone played continuously).
-    """
-    return random.choice(frequency_pool)
+def generate_reg1_repeated_tone(frequency, tone_duration=0.05, total_duration=3.0, sample_rate=48000):
+    samples_per_tone = int(tone_duration * sample_rate)
+    num_repeats = int(total_duration / tone_duration)
+
+    # Time vector for 50 ms
+    t = np.linspace(0, tone_duration, samples_per_tone, False)
+    tone_wave = 0.5 * np.sin(2 * np.pi * frequency * t)
+
+    # === Fade in/out to reduce clicks ===
+    fade_duration = 0.005  # 5ms fade in/out
+    fade_samples = int(fade_duration * sample_rate)
+
+    fade_in = np.linspace(0, 1, fade_samples)
+    fade_out = np.linspace(1, 0, fade_samples)
+    envelope = np.ones_like(tone_wave)
+    envelope[:fade_samples] *= fade_in
+    envelope[-fade_samples:] *= fade_out
+
+    tone_wave *= envelope
+
+    # Repeat tone burst
+    full_wave = np.tile(tone_wave, num_repeats)
+
+    return full_wave
 
 def present_trial(condition, frequency_pool, trial_num):
     """Present a trial of the specified condition."""
@@ -617,23 +636,24 @@ def present_trial(condition, frequency_pool, trial_num):
         transition_timestamp_1 = core.getTime()
         
         # Generate reg1_tone (single tone for the second part of the trial)
-        reg1_tone_value = generate_reg1_sequence(frequency_pool)
+        reg1_freq = random.choice(frequency_pool)  # Pick a tone from the pool
+        reg1_tone_value = reg1_freq
+        waveform = generate_reg1_repeated_tone(reg1_freq)
         
         # Instead of using play_tone_sequence, directly play the single tone for 3 seconds
         print(f"Trial Order Number {trial_num} - RAND20-REG1 (REG1 part)")
         print(f"Playing single tone: {reg1_tone_value} for 3.0s")
 
-        # Prepare for direct tone playing and gaze tracking
+        # Play the full waveform as one seamless sound
         reg1_frames = int(3 / refresh_rate)
-        next_flip = win.getFutureFlipTime(clock='ptb')
-        tone = sound.Sound(value=reg1_tone_value, secs=3.0, stereo=True, hamming=True, sampleRate=48000)
-        tone.play(when=next_flip)
-    
+        reg1_tone = sound.Sound(value=waveform, sampleRate=48000, stereo=True)
+        next_flip = win.getFutureFlipTime(clock='ptb')  # If syncing with screen
+        reg1_tone.play(when=next_flip)
         
         # Wait for the full duration (3 seconds)
         for frame in range(reg1_frames):
             if event.getKeys(['escape']):
-                tone.stop()
+                reg1_tone.stop()
                 break
             
             # Check gaze position and update display accordingly
@@ -641,11 +661,13 @@ def present_trial(condition, frequency_pool, trial_num):
             
             if check_nodata(gaze_position):
                 nodata_stimulus += refresh_rate
+                print('warning: no eyes detected')
                 fixation.draw()
             else:
                 if gaze_position is not None:
                     if check_gaze_offset(gaze_position):
                         gaze_offset_stimuli += refresh_rate
+                        print('warning: gaze offset')
                         draw_gazedirect(background_color_rgb)
                     else:
                         fixation.draw()
@@ -654,7 +676,7 @@ def present_trial(condition, frequency_pool, trial_num):
             
             win.flip()
         
-        tone.stop()  # Ensure tone is stopped
+        reg1_tone.stop()  # Ensure tone is stopped
         
         # Create part2_sequences for consistency
         part2_sequences = [reg1_tone_value] * int(3 / DURATION_TONE)

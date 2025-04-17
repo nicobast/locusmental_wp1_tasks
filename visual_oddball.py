@@ -67,7 +67,7 @@ participant_id = sys.argv[1]
 timepoint = sys.argv[2]
 print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-selected_timepoint = timepoint[0]  # Get the first item from the list
+selected_timepoint = timepoint  # Get the first item from the list
 
 # Name for output data
 fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
@@ -358,8 +358,8 @@ def oddball_gazecontingent(oddball_object, duration_in_seconds, background_color
 
 
 # ==== Stimulus Properties ====
-STANDARD_SIZE = 114 # degrees 2.9
-ODDBALL_SIZE = 180  # degrees 4.6
+STANDARD_SIZE = 130 # degrees 2.9
+ODDBALL_SIZE = 209  # degrees 4.6
 STIMULUS_COLOR = (0,.4,.6)
 
 # ==== Timing (in seconds) ====
@@ -432,14 +432,34 @@ def create_trial_sequence():
     
     return sequence
 
-# ==== Single Trial Function ====
+# ==== Single Trial Function (Stimulus → ISI) ====
 def run_trial(trial_type):
     nodata_stimulus = 0
     logging.info(f'Running trial type: {trial_type}')
     timestamp_exp = core.getTime()
     trial_start_time = timestamp_exp
 
-    # Show blank screen for ISI (Inter-Stimulus Interval)
+    # === 1. Show the stimulus first ===
+    stimulus = standard if trial_type == 'standard' else oddball
+
+    stimulus_frames = int(STIMULUS_DURATION / refresh_rate)
+    stimulus_start = core.getTime()
+
+    for _ in range(stimulus_frames):
+        stimulus.draw()
+
+        if check_nodata(tracker.getPosition()):
+            nodata_stimulus += refresh_rate
+            print ('warning: no eyes detected')
+        elif check_gaze_offset(tracker.getPosition()):
+            print('warning: gaze offset')
+
+        win.flip()
+
+    stimulus_end = core.getTime()
+    stimulus_duration = round(stimulus_end - stimulus_start, 3)
+
+    # === 2. Show blank screen for ISI AFTER stimulus ===
     blank_screen = visual.Rect(
         win=win,
         width=2,
@@ -447,33 +467,18 @@ def run_trial(trial_type):
         fillColor=background_color_rgb,
         units='norm'
     )
-    # Call the gaze-contingent function during ISI and pass the blank screen and ISI duration
+    ISI_start = core.getTime()
+    # Gaze-contingent function during ISI
     actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = oddball_gazecontingent(
         blank_screen, ISI_DURATION, background_color=background_color_rgb
     )
-    
-    stimulus = standard if trial_type == 'standard' else oddball
-   
-    # Calculate total number of frames for stimulus duration
-    stimulus_frames = int(STIMULUS_DURATION / refresh_rate)  # e.g., 60 Hz → 6 frames for 100ms
-    stimulus_start = core.getTime()
-
-    for _ in range(stimulus_frames):
-        stimulus.draw()
-        
-        # Track missing gaze data (if applicable)
-        if check_nodata(tracker.getPosition()):  
-            nodata_stimulus += refresh_rate # Accumulate missing data time
-        
-        win.flip()  # Flip the window each frame to show the stimulus
-
-    stimulus_end = core.getTime()
-    stimulus_duration = round(stimulus_end - stimulus_start, 3)
-
+    ISI_end = core.getTime()
+    ISI_duration_timestamp =  round(ISI_end -ISI_start, 3)
     trial_end_time = core.getTime()
     trial_duration = round(trial_end_time - trial_start_time, 3)
 
-    return timestamp_exp, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration,gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration
+    return timestamp_exp, stimulus_start, stimulus_end, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration, ISI_duration_timestamp, ISI_start, ISI_end
+
 
 # ==== Main Experiment Function ====
 def run_experiment():
@@ -536,19 +541,24 @@ def run_experiment():
             trial_start = core.getTime()
 
             # Run the trial using only run_trial function
-            timestamp_exp, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration = run_trial(trial_type)
+            timestamp_exp, stimulus_start, stimulus_end, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration, ISI_duration_timestamp, ISI_start, ISI_end = run_trial(trial_type)
 
             # Save trial data
             trials.addData('trial_number', trial_counter +1)  # Ensuring unique numbering
             trials.addData('timestamp_exp', timestamp_exp)
+            trials.addData('stimulus_start_timestamp', stimulus_start)
+            trials.addData('stimulus_end_timestamp', stimulus_end)
             trials.addData('stimulus_duration', stimulus_duration)
             trials.addData('nodata_stimulus', round(nodata_stimulus,3))
             trials.addData('trial_duration', trial_duration)
+            trials.addData('ISI_start_timestamp', ISI_start)
+            trials.addData('ISI_end_timestamp', ISI_end)
             trials.addData('expected_isi_duration', ISI_DURATION)
+            trials.addData('ISI_duration_timestamp',ISI_duration_timestamp)
             trials.addData('gaze_offset_isi_duration', gaze_offset_isi_duration)
             trials.addData('pause_isi_duration', pause_isi_duration)
             trials.addData('nodata_isi_duration', nodata_isi_duration)
-            trials.addData('actual_isi_duration', actual_isi_duration)
+            trials.addData('actual_isi_duration', actual_isi_duration) # from gazecontingency function
 
             # Print relevant information for the current stimulus trial
             print(f"\n-----Trial {trial_counter+1}-----")
@@ -603,19 +613,19 @@ def run_experiment():
     finally:
         print ("Saving data...")
         # print("Column names before saving:", trials.data.keys())      
-        try:
-            trials.saveAsWideText(str(trials_data_folder / fileName))
+        #try:
+            #trials.saveAsWideText(str(trials_data_folder / fileName))
             #exp.saveAsPickle(str(fileName))
-        except Exception as e:
+        # except Exception as e:
        # print(f"Error while saving:{e}")
 
-            # Close reading from eyetracker:
-            tracker.setRecordingState(False)
-            # Close iohub instance:
-            io.quit()
-            
-            win.close()
-            core.quit()
+    # Close reading from eyetracker:
+    tracker.setRecordingState(False)
+    # Close iohub instance:
+    io.quit()
+
+    win.close()
+    core.quit()
 
 
 # Start the experiment

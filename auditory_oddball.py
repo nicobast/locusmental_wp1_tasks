@@ -110,7 +110,7 @@ no_data_warning_cutoff = 0.5
 settings = {}
 
 # Presenting a dialog box. Infos are added to settings.
-settings['id'] = 123 #default testing value
+# settings['id'] = 123 #default testing value
 #settings['group'] = ['ASD', 'TD'] #extra lines can pass additional info to experiment file
 #settings['luminance'] = 0 #extra lines can pass additional info to experiment file
 # Create a dialog box for participant info
@@ -119,7 +119,7 @@ participant_id = sys.argv[1]
 timepoint = sys.argv[2]
 print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-selected_timepoint = timepoint[0]  # Get the first item from the list
+selected_timepoint = timepoint 
 
 # Name for output data:
 # participant_id and selected_timepoint come from the dialog box input
@@ -458,16 +458,6 @@ def present_stimulus(duration_in_seconds, trial):
             logging.info(f' STANDARD WAS PLAYED IN: {sound_standard} Hz')
             standard_sound.play(when=nextFlip)
 
-    if trial == 'oddball_rev':
-        if sound_oddball == sound_two_in_Hz or sound_oddball == sound_one_in_Hz:
-            logging.info(f' ODDBALL_REV WAS PLAYED IN: {sound_standard} Hz')
-            standard_sound.play(when=nextFlip)
-
-    if trial == 'standard_rev':
-        if sound_standard == sound_two_in_Hz or sound_standard == sound_one_in_Hz:
-            logging.info(f' STANDARD_REV WAS PLAYED IN: {sound_oddball} Hz')
-            oddball_sound.play(when=nextFlip)
-
     number_of_frames = round(duration_in_seconds/refresh_rate) 
     # Present cross for number of frames:
     timestamp = clock.getTime()
@@ -479,10 +469,6 @@ def present_stimulus(duration_in_seconds, trial):
         oddball_sound.stop()
     if trial == 'standard':
         standard_sound.stop()
-    if trial == 'oddball_rev':
-        standard_sound.stop()
-    if trial == 'standard_rev':
-        oddball_sound.stop()
     # Function output
     actual_stimulus_duration = round(clock.getTime()-timestamp,3)
     print(trial + " duration:",actual_stimulus_duration)
@@ -534,13 +520,13 @@ for phase in phase_handler:
 
         # Continuing counting after last oddball_block...
         standard_trial_counter = oddball_trial_counter
-        
+
         for standard in standards:
             ISI = define_ISI_interval()
             timestamp = time.time()
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-            print(f'\nTRIAL {trial_counter} ({standard.upper()})')
+            print(f'\nTRIAL {trial_counter+1} ({standard.upper()})')
             logging.info(' NEW TRIAL')
             print("ISI: ", ISI)
             logging.info(' ISI: ' f'{ISI}')
@@ -579,7 +565,7 @@ for phase in phase_handler:
             timestamp = time.time() 
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-            print(f'\nTRIAL {trial_counter} ({trial.upper()})')  
+            print(f'\nTRIAL {trial_counter+1} ({trial.upper()})')  
             logging.info(' NEW TRIAL')
             print("ISI: ",ISI)
             logging.info(' ISI: ' f'{ISI}')

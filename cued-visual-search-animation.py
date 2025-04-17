@@ -16,6 +16,12 @@ import traceback
 from datetime import datetime
 import json
 import sys
+import cv2
+import numpy as np
+import sounddevice as sd
+import wave
+import pyaudio
+import threading
 
 # Load the config file
 with open("config.json", "r") as file:
@@ -254,7 +260,7 @@ def check_nodata(gaze_position):
 
 
 # Get gaze position and offset cutoff.
-gaze_offset_cutoff = 200
+gaze_offset_cutoff = 3*size_fixation_cross_in_pixels
 # Then check for the offset of gaze from the center screen.
 def check_gaze_offset(gaze_position):
     gaze_center_offset = numpy.sqrt((gaze_position[0])**2 + (gaze_position[1])**2) #pythagoras theorem
@@ -428,21 +434,20 @@ def show_baseline_fixation():
 
     exp.nextEntry()  # Move to next row in data file
 
-
 def run_experiment():
 
     print("Starting Experiment")
      # **Start Eye-tracking Recording**,
     tracker.setRecordingState(True)  
-    print("Eye-tracking recording started")
+    print("Eye-tracking recording started")    
 
     start_time = core.getTime()
-
+    
      # --- Phase 0: Show Baseline Fixation Cross before trials ---
     show_baseline_fixation()
 
     # Trial loop
-    for trial in range(num_trials):
+    for trial in range(min(num_trials,5)):
         pause_duration= 0
         nodata_visual_search = 0
         print(f"\n----TRIAL {trial + 1}----")
@@ -454,8 +459,7 @@ def run_experiment():
 
         # --- PHASE 1: Play Inter Stimulus Interval (ISI)  ---
         # 
-        isi_start_time = core.getTime() 
-                                
+        isi_start_time = core.getTime()                  
         actual_oddball_duration, gaze_offset_duration, pause_duration, nodata_duration = oddball_gazecontingent(
         oddball_object=fixation,  
         duration_in_seconds=INTER_TRIAL_INTERVAL,  
@@ -503,7 +507,8 @@ def run_experiment():
             
             next_flip = win.getFutureFlipTime(clock='ptb')
         
-            beep.play(when=next_flip)
+            beep.play(when=next_flip) 
+                      
             print(f"Trial {trial + 1}: Beep STARTED at {beep_start_time}")
             for frame in range(beep_frames):
                 if check_nodata(tracker.getPosition()):
@@ -511,6 +516,7 @@ def run_experiment():
                 win.flip()
             beep.stop()
 
+            beep_end_time = core.getTime()
             beep_duration= round(core.getTime() - beep_start_time, 3)
             print(f"Trial {trial + 1}: Beep STOPPED, actual duration = {beep_duration} sec")
 
@@ -528,7 +534,8 @@ def run_experiment():
             # No beep case - Set expected_beep_duration to 0 or None
             expected_beep_duration = 0
             delay_duration = 0
-    
+
+        beep_phase_end_timestamp = core.getTime()
         beep_phase_duration = round(core.getTime() - beep_phase_start_time, 3)
         print(f"Trial {trial + 1}: No data during beep interval = {nodata_beep_interval:.3f} seconds")
         print(f"Trial {trial + 1}: Beep phase completed in {beep_phase_duration:.3f} seconds")
@@ -585,9 +592,8 @@ def run_experiment():
 
             if check_nodata(tracker.getPosition()):  # Check for no data
                 nodata_visual_search += refresh_rate
-
             win.flip()
-        
+
         actual_stimulus_duration = round(core.getTime() - visual_search_start_time, 3)
         print(f"Trial {trial + 1}: No data during circles = {nodata_visual_search:.3f} seconds")
         print(f"Trial {trial + 1}: Visual search phase completed in {actual_stimulus_duration:.3f} seconds")
@@ -609,6 +615,8 @@ def run_experiment():
         trials.addData('target_color', odd_color_name)
         trials.addData('target_position_index', odd_index)
         trials.addData('target_position', direction)
+        trials.addData('ISI_start_timestamp', isi_start_time)
+        trials.addData('ISI_end_timestamp',isi_end_time)
         trials.addData("ISI_Gaze_Offset_Duration", gaze_offset_duration)   # from gazecontingent function
         trials.addData("ISI_nodata_Duration", nodata_duration) #from gazecontingent function
         trials.addData("ISI_Pause_Duration", pause_duration) # from gazecontingent function
@@ -617,7 +625,10 @@ def run_experiment():
         trials.addData('ISI_duration_timestamp', isi_actual_duration) # calculated within the trial
         trials.addData("ISI_actual_duration", actual_oddball_duration) # from gazecontingent function
         trials.addData('auditory_cue', auditory_cue)
-        trials.addData('timestamp_beep', beep_start_time)
+        trials.addData('beep_phase_start_timestamp', beep_phase_start_time)
+        trials.addData('beep_phase_end_timestamp', beep_phase_end_timestamp)
+        trials.addData('beep_start_timestamp', beep_start_time)
+        trials.addData('beep_end_timestamp', beep_end_time)
         trials.addData('actual_beep_duration', beep_duration)
         trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
         trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
@@ -635,7 +646,8 @@ def run_experiment():
     # --- SAVE FINAL DATA & CLOSE ---
     trials.saveAsWideText(fileName, sheetName='trials', appendFile=True)
     exp.saveAsPickle(fileName)
-    
+
+
     # Close reading from eyetracker:
     tracker.setRecordingState(False)
     # Close iohub instance:
