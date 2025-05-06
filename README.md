@@ -29,6 +29,7 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
   3. Tobii Pro SDK as Tobii Research Python module: pip install tobii_research
   4. Verify installation of Psychopy and Numpy using: pip list
   5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
+  6. Requires [FFmpeg](https://ffmpeg.org/) to run the between-tasks videos. To check if FFmpeg is installed, run: ffmpeg -version; If not installed, download it from: https://ffmpeg.org/download.html. Alternatively, the code is adapted to use VLC media player, if ffmpeg is not available.
 
 ## Submodule iohub
  * Issue: during task execution, an error in one of the module files occured prevented the recording of gaze data.
@@ -52,7 +53,7 @@ Monitor settings are configured in the experiment's config.json file. This file 
  * Device Configuration: All device settings, including monitor parameters, are defined in the config.json file. The monitor name is saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
  * Avoid Integrated Graphics: It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
  * Windows Scaling: Set the Windows scaling to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
- * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 2550x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
+ * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
@@ -75,6 +76,12 @@ Monitor settings are configured in the experiment's config.json file. This file 
   
   * Run one task
     - If you want to run only one specific task in the experiment, you can do so by modifying the tasks [] list in the runner.py file. To exclude a task from being executed, simply add a '#' symbol in front of the task name in the tasks [] list. This will comment out the task, and it will not be run when you execute the script.
+
+## Versions
+  ** Cartoon Version**: Displays short cartoons during the inter-stimulus interval (ISI) instead of a fixation cross, in the auditory_oddball and rapid_sound_sequences tasks.
+   *Note: The cartoon files are not included in the repository. You can use your own cartoon or animation clips. Store them in a media folder in your main directory(e.g. locusmental_wp1_tasks).*
+  ** Original Version**: Follows the task structure as described below. Videos are shown only between tasks for attention grabbing. 
+  *Note: The cartoon files are not included in the repository.Store them in the media folder. Store them in a media folder in your main directory(e.g. locusmental_wp1_tasks)* 
 
 ## The Auditory Oddball Task
 The task is used to manipulate Locus-Coeruleus-Norepinephrine (LC-NE) activity. In four task blocks, each including 100 trials, a frequent tone (standard) is presented with a probability of 80% while an infrequent tone of a different pitch (oddball) is presented with a probability of 20%. The pitch level indicating oddballs in the 1st task block and the 3rd task block (oddball blocks) are either 500 Hz or 750 Hz. Oddballs in the 2nd and 4th task block are of the opposite pitch (oddball blocks reverse). Three additional standard trials precede each task block.  
