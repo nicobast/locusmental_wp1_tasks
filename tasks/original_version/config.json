@@ -1,0 +1,87 @@
+{
+
+    "python_env": {
+        "venv_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/battery_venv/Scripts/python.exe"
+    },
+    "task_base_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/",
+    "task_paths": {
+        "visual_oddball": "tasks/original_version/visual_oddball_ov.py",
+        "cued_visual_search": "tasks/original_version/cued-visual-search-ov.py",
+        "auditory_oddball": "tasks/original_version/auditory_oddball_ov.py",
+        "rapid_sound_sequences": "tasks/original_version/rapid-sound-sequences_ov.py"
+    },
+    "video_path": "media/between_tasks_videos",
+    "constants": {
+        "monitor": {
+            "name": "Iskra_monitor_204",
+            "width": 2560,
+            "height": 1440,
+            "distance_cm": 60,
+            "width_cm": 59.5
+        },
+        "audio": {
+            "device": "Realtek HD Audio 2nd output (Realtek(R) Audio)",
+            "latency_mode": 3, 
+            "Lib":"ptb"
+        },
+        "eyetracker": {
+            "testmode": false,
+            "sampling_rate": 60,
+            "device": "Tobii Pro Spark"
+         },
+        "psychopy_window": {
+            "fullscreen": true,
+            "background_color": [0, 0, 0],
+            "size_fixation_cross_in_pixels": 90
+        },
+        "presentation_screen": 0,
+        "dialog_screen": 1
+    },
+    "tasks": {
+        "auditory-oddball": {
+            "logging": {
+                "base_path": "tasks/original_version/data/auditory_oddball",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "tasks/original_version/data/auditory_oddball/trialdata",
+                "eyetracking": "tasks/original_version/data/auditory_oddball/eyetracking",
+                "logging": "tasks/original_version/data/auditory_oddball/logging_data"
+            }
+        },
+        "cued-visual-search": {
+            "logging": {
+                "base_path": "tasks/original_version/data/visual_search_task",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "tasks/original_version/data/visual_search_task/trialdata",
+                "eyetracking": "tasks/original_version/data/visual_search_task/eyetracking",
+                "logging": "tasks/original_version/data/visual_search_task/logging_data"
+            }
+        },
+        "rapid-sound-sequences": {
+            "logging": {
+                "base_path": "tasks/original_version/data/rapid_sound_sequences",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "tasks/original_version/data/rapid_sound_sequences/trialdata",
+                "eyetracking": "tasks/original_version/data/rapid_sound_sequences/eyetracking",
+                "logging": "tasks/original_version/data/rapid_sound_sequences/logging_data"
+            }
+        },        
+        "visual-oddball": {
+            "logging": {
+                "base_path": "tasks/original_version/data/visual_oddball",
+                "log_folder": "logging_data"
+            },
+            "data_paths": {
+                "trials": "tasks/original_version/data/visual_oddball/trialdata",
+                "eyetracking": "tasks/original_version/data/visual_oddball/eyetracking",
+                "logging": "tasks/original_version/data/visual_oddball/logging_data"
+            }
+        }
+    }
+        }
+    
