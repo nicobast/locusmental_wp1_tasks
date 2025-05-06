@@ -6,9 +6,10 @@
 .DS_Store
 desktop.ini
 
-data/*
-data/
+**/data/
 
 venv_battery/ 
 
 .PowerFolder/
+
+media/*
