@@ -1,0 +1,518 @@
+---
+title: "Auditory Oddball Data Quality and Analysis"
+author: "Iskra Todorova"
+date: "2025-05-12"
+output: html_document
+---
+
+```{r setup,echo = FALSE, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+
+pkgs <- c("tidyverse",
+         "ggplot2", # creating graphs
+         "dplyr",
+         "patchwork",
+         "knitr",
+         "viridis",
+         "DT",
+         "kableExtra",
+         "lme4",
+         "lmerTest",
+         "emmeans"
+          )
+
+# check if required packages are installed
+installed_packages = pkgs %in% rownames(installed.packages())
+
+# install packages if not installed
+if (any(installed_packages == FALSE)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+lapply(pkgs, function(pkg) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    message(paste("Package", pkg, "not found."))
+  }
+})
+```
+
+
+```{r load_data, include=FALSE, warning=FALSE}
+# Define paths (adjust to your project)
+
+home_path <- "C:/Users/iskra_todorova"
+data_path <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/auditory_oddball/"
+
+
+# Load processed files
+list.files(data_path)
+df_et <- readRDS(paste0(home_path, data_path, "eyetracking_ao.rds"))
+df_trial <- readRDS(paste0(home_path, data_path, "trialdata_ao.rds"))
+
+```
+
+### Trial-level metrics 
+
+To assess the quality of eye tracking data across trials, we calculated two key metrics: the gaze offset duration and the gaze nodata duration. These metrics represent, respectively, the total time within a trial that gaze deviated from the center (e.g., off-screen or invalid positions), and the time during which no gaze data was recorded.
+
+We then normalized these durations by the total trial duration to express them as proportions. This allows for fair comparisons across trials of varying durations and helps to identify trials or participants with a high proportion of missing or unreliable gaze data.
+
+```{r pressure, echo=FALSE}
+
+df_trial_duration <- df_trial %>%
+  arrange(id, timestamp_exp) %>%
+  filter(!is.na(timestamp_exp)) %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    trial_start = first(timestamp_exp),
+    .groups = "drop"
+  ) %>%
+  arrange(id, trial_start) %>%
+  group_by(id) %>%
+  mutate(
+    trial_end = lead(trial_start),
+    trial_duration = trial_end - trial_start
+  ) %>%
+  ungroup()
+
+df_trial <- df_trial %>%
+  left_join(df_trial_duration %>% select(id, trial_number, trial_duration),
+            by = c("id", "trial_number"))
+
+df_trial <- df_trial %>%
+  group_by(id, trial_number) %>%
+  mutate(
+    prop_offset = gaze_offset_duration / trial_duration,
+    prop_nodata = trial_nodata_duration / trial_duration
+  ) %>%
+  ungroup()
+
+```
+
+
+```{r}
+summary(df_trial$prop_offset)
+```
+
+```{r}
+summary(df_trial$prop_nodata)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(df_trial, aes(x = prop_nodata )) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = "Proportion of No Data Duration per Trial",
+       x = "Proportion No Data", y = "Count")
+```
+```{r, echo=FALSE}
+ggplot(df_trial, aes(x = as.factor(id), y = prop_nodata)) +
+  geom_boxplot() +
+  labs(title = "Proportion of Gaze No Data by Participant",
+       x = "Participant", y = "Proportion No data") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_minimal()
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(df_trial, aes(x = prop_offset )) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = "Proportion of Gaze Offset Duration per Trial",
+       x = "Proportion Gaze Offset", y = "Count")+
+  theme_minimal()
+```
+```{r, echo=FALSE, warning=FALSE}
+ggplot(df_trial, aes(x = as.factor(id), y = prop_offset)) +
+  geom_boxplot() +
+  labs(title = "Proportion of Gaze Offset by Participant",
+       x = "Participant", y = "Proportion Gaze Offset") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_minimal()
+```
+
+## Pupil Dilation (PD) Data 
+
+Exploration of the missing pupil data across participants and trials. We examined the the proportion of missing PD data in the eye-tracking data set. We calculated the percentage of missing PD data for each trial and participant. We consider a 20 % and above missing data proportion in a trial as low quality data. These trials would be further investigated. 
+
+```{r, echo=FALSE}
+na_threshold <- 0.2
+
+# Summarize NA proportion per trial
+trial_na_summary <- df_et %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    total_samples = n(),
+    na_count = sum(is.na(pd)),
+    na_prop = mean(is.na(pd)),
+    .groups = "drop"
+  )
+
+# Inspect high-NA trials
+high_na_trials <- trial_na_summary %>%
+  filter(na_prop > na_threshold)
+
+print(high_na_trials)
+```
+
+```{r, echo=FALSE}
+# Filter data for the participant
+participant_data <- df_et %>% 
+  filter(id == 1005) %>% 
+  mutate(sample_index = row_number())
+
+# Plot pupil size over sample index
+ggplot(participant_data, aes(x = sample_index, y = pd)) +
+  geom_line(color = "black", na.rm = TRUE) +
+  geom_point(data = subset(participant_data, is.na(pd)), 
+             aes(x = sample_index, y = 0), 
+             color = "red", shape = 4, size = 2) +
+  labs(
+    title = paste("Pupil Size Over Time - Participant"),
+    x = "Sample Index",
+    y = "Pupil Diameter (pd)"
+  ) +
+  theme_minimal()
+```
+
+The black line represents the pupil diameter across samples, illustrating how the pupil size changes over the course of the entire task. Red marks indicate instances where pupil diameter (PD) data is missing. 
+
+
+```{r, echo=FALSE}
+# Exclude trials with high NAs
+df<- df_et %>%
+  anti_join(high_na_trials, by = c("id", "trial_number"))
+```
+
+## Gaze Positions
+
+A further data quality metric we want to asses is the gaze deviations from the center of the screen.
+
+```{r, echo=FALSE}
+
+# Calculate average of left and right eye gaze positions
+df$gaze_x_px = (df$left_gaze_x + df$right_gaze_x) / 2
+df$gaze_y_px = (df$left_gaze_y + df$right_gaze_y) / 2
+
+# Plot Distribution
+
+plot(df$gaze_x_px, df$gaze_y_px, 
+     main = "Raw Gaze Points", 
+     xlab = "X", ylab = "Y", 
+     xlim = c(-1300, 1300), ylim = c(-800, 800))
+abline(h = 0, col = "red")  # y = 0
+abline(v = 0, col = "blue") # x = 0
+
+```
+
+Summaries of raw gaze positions
+```{r}
+summary(df$gaze_x_px)
+```
+
+```{r}
+summary(df$gaze_y_px)
+```
+
+The gaze positions are primarily clustered around the center of the screen (0,0). To facilitate analysis, we converted these coordinates to a screen-based reference frame.
+Some gaze points fall outside the physical boundaries of the monitor, with values exceeding the screen resolution. This occurs because the eye tracker can record gaze estimates that lie beyond the screen edges. 
+
+```{r, echo=FALSE}
+df$gaze_x_screen <- df$gaze_x_px + 2560 / 2
+df$gaze_y_screen <- df$gaze_y_px + 1440 / 2
+
+plot(df$gaze_x_screen, df$gaze_y_screen, 
+     main = "Screen-centered Gaze Points", 
+     xlab = "X", ylab = "Y", 
+     xlim = c(-1300, 1300), ylim = c(-800, 800))
+abline(h = 0, col = "red")  # y = 0
+abline(v = 0, col = "blue") # x = 0
+
+```
+
+Summaries of screen-based gaze positions
+```{r}
+summary(df$gaze_x_screen)
+```
+
+```{r}
+summary(df$gaze_y_screen)
+```
+
+Filter the off-screen values into a separate data frame and create another data frame containing only the valid, on-screen data.
+
+```{r, echo=FALSE}
+# DF Valid (on-screen) gaze points
+df_valid <- df[
+  df$gaze_x_screen >= 0 & df$gaze_x_screen <= 2560 &
+  df$gaze_y_screen >= 0 & df$gaze_y_screen <= 1440,
+]
+
+# DF Off-screen gaze points
+df_offscreen <- df[
+  df$gaze_x_screen < 0 | df$gaze_x_screen > 2560 |
+  df$gaze_y_screen < 0 | df$gaze_y_screen > 1440,
+]
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# Plot valid  gaze positions
+ggplot(df_valid, aes(x = gaze_x_screen, y = gaze_y_screen)) +
+  geom_hex(bins = 50) +  # Adjust bins to control resolution
+  scale_fill_viridis_c(option = "inferno", trans = "log") +
+  scale_y_reverse() +  # Match screen orientation (top-left origin)
+  coord_fixed(xlim = c(0, 2560), ylim = c(0, 1440)) +
+  theme_minimal() +
+  labs(
+    title = " Plot of Gaze Points",
+    x = "Gaze X (screen px)",
+    y = "Gaze Y (screen px)",
+    fill = "Log Count"
+  )
+```
+
+### Gaze Deviation from center
+
+```{r, echo=FALSE}
+# Define center point
+fix_center_x <- 2560 / 2  # 1280
+fix_center_y <- 1440 / 2  # 720
+threshold_px <- 90 * 3 / 2  # Half of 270 = 135
+
+# Offcenter definition
+# A rectangle centered at (1280, 720), with width and height = 270px (3*90 px, the size of the fixcross)
+# Valid gaze positions
+
+# x ∈ [1280 - 135, 1280 + 135]  => [1145, 1415]
+# y ∈ [720 - 135, 720 + 135]    => [585, 855]
+
+df_valid$gaze_deviated <- with(df_valid, 
+  gaze_x_screen < 1145 | gaze_x_screen > 1415 |
+  gaze_y_screen < 585  | gaze_y_screen > 855
+)
+
+# OR
+# Compute Euclidean distance from fixation cross
+df_valid$gaze_distance <- with(df_valid,
+  sqrt((gaze_x_screen - fix_center_x)^2 + (gaze_y_screen - fix_center_y)^2)
+)
+
+# Label deviation (TRUE if beyond 135px radius)
+df_valid$deviated <- df_valid$gaze_distance > threshold_px
+```
+
+```{r}
+# Overall summary of distances
+summary(df_valid$gaze_distance)
+```
+
+```{r, echo=FALSE}
+ggplot(df_valid, aes(x = gaze_x_screen, y = gaze_y_screen)) +
+  geom_point(aes(color = deviated), alpha = 0.5, size = 1) +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+  geom_rect(aes(xmin = fix_center_x - threshold_px, xmax = fix_center_x + threshold_px,
+                ymin = fix_center_y - threshold_px, ymax = fix_center_y + threshold_px),
+            fill = NA, color = "blue", linetype = "dashed") +
+  scale_y_reverse() +
+  coord_fixed(xlim = c(0, 2560), ylim = c(0, 1440)) +
+  theme_minimal() +
+  labs(
+    title = "Gaze Positions — Deviated vs. Fixation Cross Area",
+    x = "Gaze X (px)",
+    y = "Gaze Y (px)",
+    color = "Deviation"
+  )
+```
+
+```{r, echo=FALSE}
+df_valid$aoi_label <- with(df_valid,
+  ifelse(
+    gaze_x_screen >= (1280 - 135) & gaze_x_screen <= (1280 + 135) &
+    gaze_y_screen >= (720 - 135)  & gaze_y_screen <= (720 + 135),
+    "AOI", "Offset"
+  )
+)
+```
+
+```{r}
+# Count gaze points in AOI vs Offset
+table(df_valid$aoi_label)
+```
+
+```{r}
+# Calculate proportion AOI vs Offset
+prop.table(table(df_valid$aoi_label)) * 100
+```
+
+AOI proportion per trial
+```{r, echo=FALSE}
+df_sum<- df_valid %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    aoi_prop = mean(aoi_label == "AOI", na.rm = TRUE),
+    offset_prop = 1 - aoi_prop
+  ) %>% 
+  ungroup()
+```
+
+```{r, echo=FALSE}
+ggplot(df_sum, aes(x = trial_number, y = offset_prop, fill = id)) +
+  geom_col(position = "dodge") +
+  theme_minimal() +
+  labs(
+    title = "Proportion of Off-Screen Gaze Points per Trial",
+    x = "Trial ID",
+    y = "Off-Screen Gaze Proportion"
+  )
+```
+
+```{r}
+summary(df_sum$aoi_prop)
+```
+```{r}
+summary(df_sum$offset_prop)
+```
+
+Calculate mean deviations and proportion of central gaze by trial type (oddball vs. standard), and create corresponding plots
+
+```{r, echo=FALSE}
+df_dev<- df_valid %>%
+  filter(!is.na(id)) %>%
+  group_by(id, trial) %>%
+  summarise(
+    mean_deviation = mean(gaze_distance, na.rm = TRUE),
+    sd_deviation = sd(gaze_distance, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+df_sum_aoi <- df_valid %>%
+  filter(!is.na(trial)) %>%
+  group_by(id, trial) %>%
+  summarise(
+    aoi_prop = mean(aoi_label == "AOI", na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r, echo=FALSE}
+ggplot(df_dev, aes(x = trial, y = mean_deviation, fill = trial)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Gaze Deviation by Stimulus Type", y = "Mean Deviation from Center")
+```
+
+```{r, echo=FALSE}
+ggplot(df_sum_aoi, aes(x = trial, y = aoi_prop, fill = trial)) +
+  geom_violin(trim = FALSE) +
+  geom_jitter(width = 0.1, alpha = 0.4) +
+  theme_minimal() +
+  labs(title = "AOI Proportion by Stimulus Type", y = "Proportion of Gaze Inside AOI")
+```
+
+
+```{r, echo=FALSE}
+df_var <- df_valid %>%
+  filter(!is.na(id)) %>% 
+  group_by(id, trial_number) %>%
+  summarise(
+    gaze_sd = sqrt(sd(gaze_x_screen, na.rm = TRUE)^2 + sd(gaze_y_screen, na.rm = TRUE)^2)
+  ) %>% 
+  ungroup()
+
+```
+
+```{r, echo=FALSE}
+ggplot(df_var, aes(x = id, y = gaze_sd)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "Gaze Variability per Participant",
+    y = "SD of Gaze from Center",
+    x = "Participant ID"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+### Gaze Velocity
+
+Gaze velocity reflects the rate of eye movement across the screen and helps identify potential saccades or periods of instability.
+
+```{r, echo=FALSE}
+df_valid <- df_valid %>%
+  arrange(id, trial_number, ts_trial) %>%
+  group_by(id, trial_number) %>%
+  mutate(
+    dx = gaze_x_screen - lag(gaze_x_screen),
+    dy = gaze_y_screen - lag(gaze_y_screen),
+    dt = ts_trial - lag(ts_trial),
+    velocity = sqrt(dx^2 + dy^2) / dt
+  )
+```
+
+```{r, echo=FALSE}
+ggplot(df_valid, aes(x = ts_trial, y = velocity)) +
+  geom_line() +
+  facet_wrap(~id) +
+  theme_minimal() +
+  labs(title = "Gaze Velocity Across Trials", y = "Velocity (px/s)", x = "Time")
+```
+
+```{r, echo=FALSE}
+ggplot(df_valid, aes(x = velocity)) +
+  geom_histogram(bins = 100) +
+  labs(title = "Distribution of Gaze Velocity", x = "Velocity (px/s)") +
+  xlim(c(0,2000))+
+  theme_minimal()
+```
+
+```{r, echo=FALSE}
+velocity_threshold <- 200
+
+df_valid <- df_valid %>%
+  mutate(event_type = if_else(velocity >= velocity_threshold, "Saccade", "Fixation"))
+```
+
+# Analysis
+
+```{r}
+# unique ids and trails combination
+valid_trials <- df_valid %>%
+  distinct(id, trial_number)
+
+df_trial_filtered <- df_trial %>%
+  semi_join(valid_trials, by = c("id", "trial_number"))
+```
+
+
+```{r}
+m1 <- lmer(trial_corr_rpd ~ trial + (1 | id), df_trial_filtered)
+anova_m1 <- anova(m1)
+print(anova_m1)
+```
+```{r}
+# Get estimated marginal means for trial_type
+emm <- emmeans(m1, ~ trial)
+contrast(emm, method = "pairwise", adjust = "tukey")
+```
+```{r}
+plot(emm, comparisons = TRUE)
+```
+
+# Visualizations
+
+```{r , echo=FALSE}
+ggplot(df_valid, aes(x = ts_trial, y = trial_corr_rpd, fill= trial, color = trial)) +
+  geom_smooth() +
+  xlim(c(0,2))+
+  labs(
+    title = " Trial Corrected RPD Oddball vs. Standard",
+    x = "Time(s)",
+    y = "Corrected RPD"
+  ) +
+  theme_minimal()
+```
+
+
