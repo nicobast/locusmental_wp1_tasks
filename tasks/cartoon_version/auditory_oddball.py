@@ -29,8 +29,6 @@ import sys
 # Miscellaneous: Hide messages in console from pygame:
 from os import environ
 environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
-import warnings
-warnings.filterwarnings("ignore")
 
 # Load the config file
 with open("tasks/cartoon_version/config.json", "r") as file:
@@ -152,6 +150,29 @@ mywin = visual.Window(
     units='pix'
 )
 
+# Check for video file
+#video_path = ['media/background/background_video.mp4']
+video_width, video_height = 1920, 1080  # Native resolution of your video
+target_width = size_fixation_cross_in_pixels * 6
+scale_factor = target_width / video_width
+scaled_width = target_width
+scaled_height = video_height * scale_factor
+
+cartoon_movie = visual.MovieStim(
+                mywin,
+                filename='media/background/background_video.mp4',
+                size=(scaled_width, scaled_height),
+                pos=(0, 0),
+                loop=True,  # Changed to True for continuous play
+                noAudio=True,
+                autoStart=True
+)
+
+
+def draw_background_cartoon():
+    if cartoon_movie.status != visual.FINISHED:
+        cartoon_movie.draw()
+
 refresh_rate = mywin.monitorFramePeriod #get monitor refresh rate in seconds
 print('monitor refresh rate: ' + str(round(refresh_rate, 3)) + ' seconds')
 
@@ -234,6 +255,12 @@ tracker.setRecordingState(True)
 
 # SETUP KEYBORD
 kb = keyboard.Keyboard()
+
+# Random interstimulus interval (SI):
+def define_ISI_interval():
+    ISI = random.randint(ISI_interval[0], ISI_interval[1])
+    ISI = ISI/1000 #get to second format
+    return ISI
 
 # Draw a fixation cross from lines:
 def draw_fixcross(background_color=background_color_rgb, cross_color = 'black'):
@@ -447,145 +474,76 @@ def fixcross_gazecontingent(duration_in_seconds, background_color = background_c
 
     return [actual_fixcross_duration, gaze_offset_duration, pause_duration, nodata_duration]
 
-def cartoon_gazecontingent(anim_object, duration_in_seconds, background_color=background_color_rgb):
-    """
-    Displays an animation gaze-contingently, pausing when gaze is lost.
-    
-    Args:
-        anim_object: A MovieStim object (the animation to play).
-        duration_in_seconds: Total intended playback duration (excluding pauses).
-        background_color: Background color of the screen.
-    """
-    # Get the animation frame rate (fps) from the MovieStim object
-    # If not available, estimate using the refresh rate
-    try:
-        animation_fps = anim_object.frameRate
-        if animation_fps is None or animation_fps <= 0:
-            animation_fps = 1.0 / refresh_rate
-    except AttributeError:
-        animation_fps = 1.0 / refresh_rate
-    
-    # Calculate target duration in terms of frames
-    target_frames = int(duration_in_seconds * animation_fps)
-    
-    # Start the animation
-    anim_object.play()
-    start_time = core.getTime()
-    
-    # Initialize tracking variables
-    frames_played = 0
+
+def monitor_gaze_and_overlay():
+    gaze_position = tracker.getPosition()
+
+    if check_nodata(gaze_position):
+        draw_gazedirect()  # draw on top of cartoon
+        logging.warning('NO EYES DETECTED')
+
+    elif check_gaze_offset(gaze_position):
+        draw_gazedirect()  # draw on top of cartoon
+        logging.warning('GAZE OFFSET')
+
+def run_ISI_with_cartoon(ISI_duration):
+    number_of_frames = round(ISI_duration / refresh_rate)
+    isi_start_time = core.getTime()
     gaze_offset_duration = 0
-    pause_duration = 0
     nodata_duration = 0
-    
-    # Continue until we've played the requested number of frames
-    while frames_played < target_frames:
-        # Check for keypress (e.g., manual pause)
+    pause_duration = 0
+
+    while (core.getTime() - isi_start_time) < ISI_duration:
         pause_duration += check_keypress()
-        
-        # Get gaze position
-        gaze_position = tracker.getPosition()
-        
-        # Case 1: No eyes detected (freeze animation)
-        if check_nodata(gaze_position):
-            print('warning: no eyes detected')
-            logging.warning('NO EYES DETECTED')
-            
-            # Pause the animation
-            anim_object.pause()
-            
-            # Handle the no-eyes-detected state
-            nodata_start = core.getTime()
-            while check_nodata(gaze_position):
-                # Show blank screen
-                mywin.flip()
-                gaze_position = tracker.getPosition()
-            
-            nodata_duration += core.getTime() - nodata_start
-            
-            # Resume animation from where it was paused
-            anim_object.play()
-                
-        # Case 2: Gaze offset (freeze animation)
-        elif check_gaze_offset(gaze_position):
-            print('warning: gaze offset')
-            
-            # Pause the animation
-            anim_object.pause()
-            
-            # Handle the gaze-offset state
-            gaze_offset_start = core.getTime()
-            while (not check_nodata(gaze_position)) and check_gaze_offset(gaze_position):
-                pause_duration += check_keypress()
-                
-                # Draw the gaze redirection cue (square)
-                draw_gazedirect(background_color)
-                mywin.flip()
-                
-                gaze_position = tracker.getPosition()
-            
-            gaze_offset_duration += core.getTime() - gaze_offset_start
-            
-            # Resume animation from where it was paused
-            anim_object.play()
-        
-        # Normal playback
-        else:
-            # Draw the current frame of animation
-            anim_object.draw()
-            mywin.flip()
-            
-            # Only increment frames_played during normal playback
-            frames_played += 1
-    
-    # Stop animation
-    anim_object.stop()
-    
-    # Calculate total duration
-    actual_duration = core.getTime() - start_time
-    
-    return [
-        round(actual_duration, 3),
-        round(gaze_offset_duration, 3),
-        round(pause_duration, 3),
-        round(nodata_duration, 3)
-    ]
+
+        draw_background_cartoon()
+        monitor_gaze_and_overlay()
+
+        mywin.flip()
+
+    isi_end_time = core.getTime()  # Timestamp at ISI end
+
+    actual_duration = round(isi_end_time - isi_start_time, 3)
+
+    return actual_duration, isi_start_time, isi_end_time, gaze_offset_duration, pause_duration, nodata_duration
 
 # Auditory oddball stimulus:
 def present_stimulus(duration_in_seconds, trial):
-    nextFlip = mywin.getFutureFlipTime(clock='ptb') # sync sound start with next screen refresh
+    # Get the next flip time for precise audio sync
+    nextFlip = mywin.getFutureFlipTime(clock='ptb')
+
+    # Start timestamp
+    stim_start_time = core.getTime()
+
+    # Play sound based on trial type
     if trial == 'oddball':
-        if sound_oddball == sound_one_in_Hz or sound_oddball == sound_two_in_Hz:
-            logging.info(f' ODDBALL WAS PLAYED IN: {sound_oddball} Hz')
-            oddball_sound.play(when=nextFlip)
+        oddball_sound.play(when=nextFlip)
+        logging.info(f'ODDBALL PLAYED: {sound_oddball} Hz')
+    elif trial == 'standard':
+        standard_sound.play(when=nextFlip)
+        logging.info(f'STANDARD PLAYED: {sound_standard} Hz')
 
-    if trial == 'standard':
-        if sound_standard == sound_one_in_Hz or sound_standard == sound_two_in_Hz:
-            logging.info(f' STANDARD WAS PLAYED IN: {sound_standard} Hz')
-            standard_sound.play(when=nextFlip)
-
-    number_of_frames = round(duration_in_seconds/refresh_rate) 
-    # Present cross for number of frames:
-    timestamp = clock.getTime()
-    for frameN in range(number_of_frames):
-        draw_fixcross()
+    # Display the stimulus for the desired duration
+    while (core.getTime() - stim_start_time) < duration_in_seconds:
+        draw_background_cartoon()
+        monitor_gaze_and_overlay()
         mywin.flip()
-    # Stop replay:
-    if trial == 'oddball':
-        oddball_sound.stop()
-    if trial == 'standard':
-        standard_sound.stop()
-    # Function output
-    actual_stimulus_duration = round(clock.getTime()-timestamp,3)
-    print(trial + " duration:",actual_stimulus_duration)
-    logging.info(' ' f'{trial}' ' DURATION: ' f'{actual_stimulus_duration}')
-    return actual_stimulus_duration
 
-# Random interstimulus interval (SI):
-def define_ISI_interval():
-    ISI = random.randint(ISI_interval[0], ISI_interval[1])
-    ISI = ISI/1000 #get to second format
-    return ISI
+    # Stop sounds to ensure they don’t linger (optional, based on stimulus duration)
+    oddball_sound.stop()
+    standard_sound.stop()
+
+    # End timestamp
+    stim_end_time = core.getTime()
+    actual_stimulus_duration = round(stim_end_time - stim_start_time, 3)
+
+    print(f"{trial.upper()} duration: {actual_stimulus_duration}")
+    logging.info(f'{trial.upper()} DURATION: {actual_stimulus_duration}')
+
+    return actual_stimulus_duration, stim_start_time, stim_end_time
+
+
+
 
 '''EXPERIMENTAL DESIGN'''
 # The trial handler calls the sequence and displays it randomized.
@@ -606,8 +564,6 @@ baseline_trial_counter = 1
 
 oddball_trial_counter = 1 # trials in oddball_blocks
 standard_trial_counter = 1 #trials in oddball_blocks
-
-animation_files = [f"media/cartoons/{i}.mp4" for i in range(1, 40)]
 
 for phase in phase_handler:
     block_counter += 1 
@@ -630,93 +586,42 @@ for phase in phase_handler:
         standard_trial_counter = oddball_trial_counter
 
         for standard in standards:
-            # === CARTOON INSTEAD OF ISI PHASE ===
-            print(f'\nTRIAL {trial_counter+1} ({standard.upper()})')
-            print(f"\nTrial {trial_counter + 1}: Loading cartoon")
-            cartoon_timeout = 1.5  # Target animation duration in seconds
-
-            # Predefine variables to ensure they exist even if an error occurs
-            actual_cartoon_duration = 0
-            gaze_offset_cartoon_duration = 0
-            pause_cartoon_duration = 0
-            nodata_cartoon_duration = 0
-
-            try:
-                # Load the animation
-                fixation_animation = visual.MovieStim(
-                    win=mywin,
-                    filename=random.choice(animation_files),
-                    loop=False,
-                    noAudio=True                    
-                )
-
-                # Calculate scaling to match target size
-                video_width, video_height = 1920, 1080
-                target_width = size_fixation_cross_in_pixels * 6
-                scale_factor = target_width / video_width
-                scaled_width = target_width
-                scaled_height = video_height * scale_factor
-
-                # Position and scale the animation
-                fixation_animation.pos = (0, 0)
-                fixation_animation.size = (scaled_width, scaled_height)
-
-                # Note: we removed fixation_animation.play() from here since it's now handled in cartoon_gazecontingent
-                cartoon_start_time = core.getTime()
-
-                # Play the animation using our gaze-contingent function for exactly 1.5 seconds of playback time
-                actual_cartoon_duration, gaze_offset_cartoon_duration, pause_cartoon_duration, nodata_cartoon_duration = cartoon_gazecontingent(
-                    fixation_animation, cartoon_timeout, background_color_rgb
-                )
-
-                # Calculate total elapsed time (including pauses)
-                total_cartoon_duration = core.getTime() - cartoon_start_time
-                
-                print(f"Trial {trial_counter + 1}: Animation target duration: {cartoon_timeout:.3f} sec")
-                print(f"Trial {trial_counter + 1}: Animation playback duration: {actual_cartoon_duration:.3f} sec")
-                print(f"Trial {trial_counter + 1}: Total elapsed time (including pauses): {total_cartoon_duration:.3f} sec")
-                
-                # Log pause information if any occurred
-                if gaze_offset_cartoon_duration > 0 or nodata_cartoon_duration > 0:
-                    print(f"Trial {trial_counter + 1}: Gaze offset duration: {gaze_offset_cartoon_duration:.3f} sec")
-                    print(f"Trial {trial_counter + 1}: No eyes detected duration: {nodata_cartoon_duration:.3f} sec")
-
-                # Ensure animation is stopped
-                fixation_animation.stop()
-                del fixation_animation
-
-            except Exception as e:
-                print(f"Trial {trial_counter + 1}: Animation error: {e}")
-            
-            # Clear the screen with 3 blank frames
-            for _ in range(3):
-                mywin.flip()
-
-            # === STIMULUS PHASE ===
+            ISI = define_ISI_interval()
             timestamp = time.time()
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-
-            
+            print(f'\nTRIAL {trial_counter+1} ({standard.upper()})')
             logging.info(' NEW TRIAL')
-            print("gaze position: ", tracker.getPosition())
+            print("ISI: ", ISI)
+            logging.info(' ISI: ' f'{ISI}')
+            print("gaze position: ",tracker.getPosition())
+            logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+            # Stimulus presentation:
+            stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
+            isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
 
-            actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds, trial=standard)
 
-            # === SAVE DATA ===
+            # Save data in .csv file:
+            # Information about each phase:
             phase_handler.addData('phase', phase)
+            #phase_handler.addData('block_counter', block_counter)
+            # Information about each trial: 
             trials.addData('oddball_trial_counter', standard_trial_counter)
-            trials.addData('trial', standard)
-            trials.addData('stimulus_duration', actual_stimulus_duration)
-            trials.addData('ISI_expected', cartoon_timeout)  # for compatibility
-            trials.addData('ISI_duration', actual_cartoon_duration)
-            trials.addData('gaze_offset_duration', gaze_offset_cartoon_duration)
-            trials.addData('trial_pause_duration', pause_cartoon_duration)
-            trials.addData('trial_nodata_duration', nodata_cartoon_duration)
-            trials.addData('timestamp', timestamp)
-            trials.addData('timestamp_exp', timestamp_exp)
+            trials.addData('trial', standard) 
+            trials.addData('ISI_expected', ISI)
+            trials.addData('ISI_duration', isi_duration)
+            trials.addData('ISI_start_time', isi_start)
+            trials.addData('ISI_end_time', isi_end)
+            trials.addData('gaze_offset_duration', offset_duration)
+            trials.addData('trial_pause_duration', pause_duration)
+            trials.addData('trial_nodata_duration', nodata_duration)
+            trials.addData('timestamp', timestamp) 
+            trials.addData('timestamp_exp', timestamp_exp) 
             trials.addData('timestamp_tracker', timestamp_tracker)
-
+            trials.addData('stimulus_duration', stimulus_duration)
+            trials.addData('stimulus_start_time', stim_start)
+            trials.addData('stimulus_end_time', stim_end)
+            
             trial_counter += 1
             standard_trial_counter += 1
             exp.nextEntry()
@@ -725,75 +630,43 @@ for phase in phase_handler:
         oddball_trial_counter = standard_trial_counter
 
         for trial in trials:
-            # === CARTOON INSTEAD OF ISI PHASE ===
-            print(f'\nTRIAL {trial_counter+1} ({trial.upper()})')
-            print(f"\nTrial {trial_counter + 1}: Loading cartoon")
-            cartoon_timeout = 1.5  # similar to original ISI duration
-            try:
-                fixation_animation = visual.MovieStim(
-                    win=mywin,
-                    filename=random.choice(animation_files),
-                    loop=False,
-                    noAudio=True
-                )
-
-                video_width, video_height = 1920, 1080
-                target_width = size_fixation_cross_in_pixels * 6
-                scale_factor = target_width / video_width
-                scaled_width = target_width
-                scaled_height = video_height * scale_factor
-
-                fixation_animation.pos = (0, 0)
-                fixation_animation.size = (scaled_width, scaled_height)
-
-                #fixation_animation.play()
-                cartoon_start_time = core.getTime()
-
-                actual_cartoon_duration, gaze_offset_cartoon_duration, pause_cartoon_duration, nodata_cartoon_duration = cartoon_gazecontingent(
-                    fixation_animation, cartoon_timeout, background_color_rgb
-                )
-
-                cartoon_duration = core.getTime() - cartoon_start_time
-                print(f"Trial {trial_counter + 1}: Animation expected duration {cartoon_timeout:.3f} sec")
-                print(f"Trial {trial_counter + 1}: Animation completed in {cartoon_duration:.3f} sec")
-
-                fixation_animation.stop()
-                del fixation_animation
-
-            except Exception as e:
-                print(f"Trial {trial_counter + 1}: Animation error: {e}")
-            
-            for _ in range(3):
-                mywin.flip()
-
-            # === STIMULUS PHASE ===
-            timestamp = time.time()
+            ISI = define_ISI_interval() 
+            timestamp = time.time() 
             timestamp_exp = core.getTime()
             timestamp_tracker = tracker.trackerTime()
-            
+            print(f'\nTRIAL {trial_counter+1} ({trial.upper()})')  
             logging.info(' NEW TRIAL')
-            print("gaze position: ", tracker.getPosition())
+            print("ISI: ",ISI)
+            logging.info(' ISI: ' f'{ISI}')
+            print("gaze position: ",tracker.getPosition())
+            logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+            # Stimulus presentation:
+            stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
+            isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
 
-            actual_stimulus_duration = present_stimulus(stimulus_duration_in_seconds, trial)
-
-            # === SAVE DATA ===
+            # Save data in .csv file:
+            # Information about each phase:
             phase_handler.addData('phase', phase)
-            trials.addData('oddball_trial_counter', oddball_trial_counter)
-            trials.addData('trial', trial)
-            trials.addData('timestamp', timestamp)
-            trials.addData('timestamp_exp', timestamp_exp)
-            trials.addData('timestamp_tracker', timestamp_tracker)
-            trials.addData('stimulus_duration', actual_stimulus_duration)
-            trials.addData('ISI_expected', cartoon_timeout)
-            trials.addData('ISI_duration', actual_cartoon_duration)
-            trials.addData('gaze_offset_duration', gaze_offset_cartoon_duration)
-            trials.addData('trial_pause_duration', pause_cartoon_duration)
-            trials.addData('trial_nodata_duration', nodata_cartoon_duration)
+            # Information about each trial:
+            trials.addData('oddball_trial_counter',oddball_trial_counter) 
+            trials.addData('trial', trial) 
+            trials.addData('timestamp', timestamp) #seconds since 01.01.1970 (epoch)
+            trials.addData('timestamp_exp', timestamp_exp) 
+            trials.addData('timestamp_tracker', timestamp_tracker) 
+            trials.addData('ISI_expected', ISI)
+            trials.addData('ISI_duration', isi_duration)
+            trials.addData('ISI_start_time', isi_start)
+            trials.addData('ISI_end_time', isi_end)
+            trials.addData('gaze_offset_duration', offset_duration)
+            trials.addData('trial_pause_duration', pause_duration)
+            trials.addData('trial_nodata_duration', nodata_duration)
+            trials.addData('stimulus_duration', stimulus_duration)
+            trials.addData('stimulus_start_time', stim_start)
+            trials.addData('stimulus_end_time', stim_end)
 
             trial_counter += 1
             oddball_trial_counter += 1
             exp.nextEntry()
-
 
     if phase == 'baseline':
         print('START OF BASELINE PHASE')
