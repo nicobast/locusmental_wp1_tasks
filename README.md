@@ -23,13 +23,13 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
   * Activate the virtual environment: environment_name\Scripts\activate
 ## Installing Required Modules
  * Installation requires "Microsoft Visual C++ 14.0" bundled with "Microsoft C++ Build Tools" (Desktop Development with C++).
+ * Requires [FFmpeg](https://ffmpeg.org/) to run the between-tasks videos. To check if FFmpeg is installed, run: ffmpeg -version; If not installed, download it from: https://ffmpeg.org/download.html. Alternatively, the code is adapted to use VLC media player, if ffmpeg is not available.
  * you use a virtual environment, all modules must be installed within that activate environment:
   1. Psychopy: Install version 2023.1.3, as newer versions may not be compatible : pip install psychopy==2023.1.3
   2. NumPy: Install version 1.23.5: pip install numpy==1.23.5
   3. Tobii Pro SDK as Tobii Research Python module: pip install tobii_research
   4. Verify installation of Psychopy and Numpy using: pip list
   5. additional modules required by the script (e.g., sounddevice or ptb) are missing, install them as well: pip install module_name
-  6. Requires [FFmpeg](https://ffmpeg.org/) to run the between-tasks videos. To check if FFmpeg is installed, run: ffmpeg -version; If not installed, download it from: https://ffmpeg.org/download.html. Alternatively, the code is adapted to use VLC media player, if ffmpeg is not available.
 
 ## Submodule iohub
  * Issue: during task execution, an error in one of the module files occured prevented the recording of gaze data.
