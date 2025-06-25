@@ -53,7 +53,7 @@ Monitor settings are configured in the experiment's config.json file. This file 
  * Device Configuration: All device settings, including monitor parameters, are defined in the config.json file. The monitor name is saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
  * Avoid Integrated Graphics: It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
  * Windows Scaling: Set the Windows scaling to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
- * Experiment Screen: The experiment is designed to run on a Full HD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
+ * Experiment Screen: The experiment is designed to run on a WQHD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
