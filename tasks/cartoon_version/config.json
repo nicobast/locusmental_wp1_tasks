@@ -1,8 +1,8 @@
 {
     "python_env": {
-    "venv_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/battery_venv/Scripts/python.exe"
+    "venv_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1/venv_battery/Scripts/python.exe"
     },
-    "task_base_path": "C:/Users/iskra_todorova/Desktop/locusmental_wp1_tasks/",
+    "task_base_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1",
     "task_paths": {
       "visual_oddball": "tasks/cartoon_version/visual_oddball.py",
       "cued_visual_search": "tasks/cartoon_version/cued-visual-search-animation.py",
@@ -13,19 +13,19 @@
     "media_folder": "media/between_tasks_videos",
     "constants": {
         "monitor": {
-            "name": "Iskra_monitor_204",
-            "width": 2560,
-            "height": 1440,
+            "name": "nico build-in",
+            "width": 1920,
+            "height": 1200,
             "distance_cm": 60,
-            "width_cm": 59.5
+            "width_cm": 33
         },
         "audio": {
-            "device": "Realtek HD Audio 2nd output (Realtek(R) Audio)",
+            "device": "Speakers (Realtek(R) Audio)",
             "latency_mode": 3, 
             "Lib":"ptb"
         },
         "eyetracker": {
-            "testmode": true,
+            "testmode": false,
             "sampling_rate": 60,
             "device": "Tobii Pro Spark"
          },
@@ -35,7 +35,7 @@
             "size_fixation_cross_in_pixels": 90
         },
         "presentation_screen": 0,
-        "dialog_screen": 1
+        "dialog_screen": 0
     },
     "tasks": {
         "auditory-oddball": {

@@ -1,7 +1,7 @@
 # Set preferences early
 from psychopy import prefs
 # Default to sounddevice for the runner itself
-prefs.hardware['audioLib'] = ['sounddevice', 'pyo', 'pygame']
+prefs.hardware['audioLib'] = ['PTB','sounddevice', 'pyo', 'pygame']
 prefs.hardware['audioLatencyMode'] = 3  # Aggressive timing
 prefs.saveUserPrefs()
 
@@ -78,9 +78,9 @@ logging.info(f"Participant: {participant_id}, Timepoint: {timepoint}")
 # Define tasks
 tasks = [
     "auditory_oddball",
-    #"cued_visual_search",
+    "cued_visual_search",
     "rapid_sound_sequences",
-    #"visual_oddball"
+    "visual_oddball"
 ]
 
 # Monitor and window setup
