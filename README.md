@@ -46,13 +46,14 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
     --> run scripts from built-in python instance
   * required eye tracker package for python needs to be installed from CMD as administrator: "C:\Program Files\PsychoPy\python.exe" -m pip install psychopy-eyetracker-tobii
   
-## Monitor and display settings
+## Configuration
 
 Monitor settings are configured in the experiment's config.json file. This file contains all paths, device settings,audio and monitor configurations, ensuring that the experiment is set up correctly for the presentation PC. Please note the following:
 
- * Device Configuration: All device settings, including monitor parameters, are defined in the config.json file. The monitor name is saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
- * Avoid Integrated Graphics: It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
- * Windows Scaling: Set the Windows scaling to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
+ * Monitor: Provide a monitor name and its parameters (resolution, width) and estimated distance from screen. The monitor name can be  saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
+ * Audio: Copy you audio device name from windows sounds (e.g.: "Speaker (Realtek HD Sound)")
+ * Graphic Card: Avoid Integrated Graphics. It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
+ * Windows Scaling: Set the Windows scaling in Windows Settings to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
  * Experiment Screen: The experiment is designed to run on a WQHD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
 
 ## Eye tracking
@@ -72,7 +73,7 @@ Monitor settings are configured in the experiment's config.json file. This file 
       - Testmode: TRUE/FALSE testmode depending on your requirements (testmode = TRUE uses mouse as gaze information)
 
   * Run the Task
-      - Execute the Runner script.
+      - Execute the Runner script from the project folder location.
   
   * Run one task
     - If you want to run only one specific task in the experiment, you can do so by modifying the tasks [] list in the runner.py file. To exclude a task from being executed, simply add a '#' symbol in front of the task name in the tasks [] list. This will comment out the task, and it will not be run when you execute the script.
