@@ -65,6 +65,7 @@ Monitor settings are configured in the experiment's config.json file. This file 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
 * in case testmode = True: the mouse is used as eyetracker and data stored in hdf5 file: -> import h5py -> access data: dset1 = f['data_collection/events/eyetracker/MonocularEyeSampleEvent']
+* the current script only supports non-discontinued eye trackers by Tobii that are supported by Tobii PRO SDK >=2.0 (current tobii_research module, https://connect.tobii.com/s/article/new-Tobii-Pro-SDK-and-ETM?language=en_US). If you want to use an older eye-tracker (e.g.: Tobii TX300), you need to install an tobii_research module that supports that eye-tracker (https://pypi.org/project/tobii-research/1.10.2/#files). Download the respective wheel file and install this file with  pip
 
 ## Run Battery 
   * Run the Task
