@@ -50,31 +50,25 @@ During all tasks, pupil dilation is measured via eye tracking. Several baseline 
 
 Monitor settings are configured in the experiment's config.json file. This file contains all paths, device settings,audio and monitor configurations, ensuring that the experiment is set up correctly for the presentation PC. Please note the following:
 
+ * Paths: based on your setup:
+   - If your environment is set up outside of the project folder, the task will not run correctly. Adjust the paths in the config.json to point to the correct directories. The paths in this file need to be accurate to avoid errors in loading resources or devices.
+   - If your environment is in the your project folder, then you can modify the config.json and delete the environment and task paths.
  * Monitor: Provide a monitor name and its parameters (resolution, width) and estimated distance from screen. The monitor name can be  saved with the PsychoPy Monitor Manager, ensuring compatibility with the experiment setup.
  * Audio: Copy you audio device name from windows sounds (e.g.: "Speaker (Realtek HD Sound)")
  * Graphic Card: Avoid Integrated Graphics. It is recommended to avoid using integrated graphics for experiment computers, as they may lack accurate frame timing, which is crucial for precise stimulus presentation.
  * Windows Scaling: Set the Windows scaling in Windows Settings to 100%. Any scaling other than 100% may result in incorrect onscreen units, causing display issues in the experiment.
- * Experiment Screen: The experiment is designed to run on a WQHD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
+ * Resolution: The experiment is designed to run on a WQHD screen with a resolution of 2560x1440. Please ensure that the system’s display settings reflect this resolution for accurate stimulus presentation.
+ * Presentation Screen: Default = 0, Main Monitor. Can be adapted if you have an external monitor for presentation (e.g.: presentation_screen = 1)
+ * Testmode: TRUE/FALSE testmode depending on your requirements (testmode = TRUE uses mouse as gaze information)
+ 
 
 ## Eye tracking
 * difference to psychopy documentation required: Define name as tracker and define a presentation window before.
 * in case testmode = True: the mouse is used as eyetracker and data stored in hdf5 file: -> import h5py -> access data: dset1 = f['data_collection/events/eyetracker/MonocularEyeSampleEvent']
 
-## Run All Tasks(Run the Battery)
-  To run the task, follow these steps:
-
-  Modify the config.json file:
-  * Adjust the following settings based on your setup:
-      - Modify path to environment accordingly
-          - If your environment is set up outside of the project folder, the task will not run correctly. Adjust the paths in the config.json to point to the correct directories. The paths in this file need to be accurate to avoid errors in loading resources or devices.
-          - If your environment is in the your project folder, then you can modify the config.json and delete the environment and task paths.
-      - Modify paths to tasks accordingly
-      - Monitor & Audio Settings: Configure display and sound settings specific to your device.
-      - Testmode: TRUE/FALSE testmode depending on your requirements (testmode = TRUE uses mouse as gaze information)
-
+## Run Battery 
   * Run the Task
       - Execute the Runner script from the project folder location.
-  
   * Run one task
     - If you want to run only one specific task in the experiment, you can do so by modifying the tasks [] list in the runner.py file. To exclude a task from being executed, simply add a '#' symbol in front of the task name in the tasks [] list. This will comment out the task, and it will not be run when you execute the script.
 
