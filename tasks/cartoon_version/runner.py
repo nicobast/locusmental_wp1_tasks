@@ -1,13 +1,14 @@
+# System and environment settings
+import os
+os.environ['PYTHONUNBUFFERED'] = '1'  # Helps with audio stability
+os.environ["LSL_LOG_LEVEL"] = "error" # removes messages in CMD
+
 # Set preferences early
 from psychopy import prefs
 # Default to sounddevice for the runner itself
 prefs.hardware['audioLib'] = ['PTB','sounddevice', 'pyo', 'pygame']
 prefs.hardware['audioLatencyMode'] = 3  # Aggressive timing
 prefs.saveUserPrefs()
-
-# System and environment settings
-import os
-os.environ['PYTHONUNBUFFERED'] = '1'  # Helps with audio stability
 
 # Imports (after prefs)
 import subprocess
@@ -77,10 +78,10 @@ logging.info(f"Participant: {participant_id}, Timepoint: {timepoint}")
 
 # Define tasks
 tasks = [
-    "auditory_oddball",
-    "cued_visual_search",
-    "rapid_sound_sequences",
-    "visual_oddball"
+    "auditory_oddball"
+    #"cued_visual_search",
+    #"rapid_sound_sequences",
+    #"visual_oddball"
 ]
 
 # Monitor and window setup
@@ -335,7 +336,6 @@ def run_task(task_name, task_path):
     # Cleanup
     if temp_settings.exists():
         temp_settings.unlink()
-    
     # Reset audio after task
     reset_audio()
     force_cleanup()
@@ -381,7 +381,8 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Battery execution error: {e}", exc_info=True)
     finally:
-        # Final cleanup
+        
+         # Final cleanup
         reset_audio()
         force_cleanup()
         core.quit()

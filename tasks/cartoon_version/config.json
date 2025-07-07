@@ -13,11 +13,11 @@
     "media_folder": "media/between_tasks_videos",
     "constants": {
         "monitor": {
-            "name": "nico build-in",
-            "width": 1920,
-            "height": 1200,
+            "name": "nicoext",
+            "width": 3440,
+            "height": 1440,
             "distance_cm": 60,
-            "width_cm": 33
+            "width_cm": 110
         },
         "audio": {
             "device": "Speakers (Realtek(R) Audio)",
@@ -25,16 +25,16 @@
             "Lib":"ptb"
         },
         "eyetracker": {
-            "testmode": false,
-            "sampling_rate": 60,
-            "device": "Tobii Pro Spark"
+            "testmode": true,
+            "sampling_rate": 300,
+            "device": "Tobii TX-300"
          },
         "psychopy_window": {
             "fullscreen": true,
             "background_color": [0, 0, 0],
             "size_fixation_cross_in_pixels": 90
         },
-        "presentation_screen": 0,
+        "presentation_screen": 1,
         "dialog_screen": 0
     },
     "tasks": {

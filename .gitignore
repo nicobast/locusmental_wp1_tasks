@@ -9,6 +9,7 @@ desktop.ini
 **/data/
 
 venv_battery/ 
+venv_eeg/
 
 .PowerFolder/
 

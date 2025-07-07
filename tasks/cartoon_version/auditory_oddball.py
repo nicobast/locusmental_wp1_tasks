@@ -2,6 +2,11 @@
 # For further information see README.md.
 # IMPORTANT: select machine specific paths and audioDevice
 
+# Miscellaneous: Hide messages in console from pygame:
+import os # 
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+os.environ["LSL_LOG_LEVEL"] = "error" # removes messages in CMD
+
 '''LOAD MODULES'''
 from psychopy import visual, core, event, clock, data, gui, monitors
 import random, time, numpy
@@ -23,12 +28,11 @@ from pathlib import Path
 # For logging data in a .log file:
 import logging
 from datetime import datetime
-import os # 
 import json
 import sys
-# Miscellaneous: Hide messages in console from pygame:
-from os import environ
-environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
+#send trigger via LSL
+from pylsl import StreamInfo, StreamOutlet
 
 # Load the config file
 with open("tasks/cartoon_version/config.json", "r") as file:
@@ -81,6 +85,16 @@ size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fix
 # Access values
 audio_device = config["constants"]["audio"]["device"]
 
+#Create the LSL stream
+info = StreamInfo(
+    name='Markers',           # Stream name (must match what you select in LabRecorder)
+    type='Markers',           # Stream type (must match in LabRecorder)
+    channel_count=1,          # 1 for simple triggers
+    nominal_srate=0,          # Irregular sampling rate for event markers
+    channel_format='string',  # Markers are usually strings
+    source_id='stimulus_stream'  # Unique ID for your experiment/session
+)
+outlet = StreamOutlet(info)
 
 # Experimental settings:
 # Input dialogue boxes are presented on external screen 0.
@@ -88,7 +102,8 @@ dialog_screen = config["constants"]["dialog_screen"]
 # Stimuli are presented on internal screen 1.
 presentation_screen =  config["constants"]["presentation_screen"]
 current_screen = presentation_screen  # Start in presentation mode
-number_of_repetitions = 20
+#number_of_repetitions = 20
+number_of_repetitions = 2
 number_of_repetition_standards = 1
 stimulus_duration_in_seconds = 0.1
 # If oddball or standrad stimulus is defined below.
@@ -255,6 +270,11 @@ tracker.setRecordingState(True)
 
 # SETUP KEYBORD
 kb = keyboard.Keyboard()
+
+#Send a trigger (marker) function
+def send_trigger(marker):
+    # marker must be a list of strings, length = channel_count
+    outlet.push_sample([str(marker)])
 
 # Random interstimulus interval (SI):
 def define_ISI_interval():
@@ -543,8 +563,6 @@ def present_stimulus(duration_in_seconds, trial):
     return actual_stimulus_duration, stim_start_time, stim_end_time
 
 
-
-
 '''EXPERIMENTAL DESIGN'''
 # The trial handler calls the sequence and displays it randomized.
 # Loop of block is added to experiment handler.
@@ -596,6 +614,11 @@ for phase in phase_handler:
             logging.info(' ISI: ' f'{ISI}')
             print("gaze position: ",tracker.getPosition())
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+
+            #send LSL trigger
+            send_trigger([str(trial_counter) + standard + str(timestamp)])
+            print(f"LSL Trigger sent: {trial_counter}, {standard}, {timestamp}")
+
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
             isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
@@ -640,6 +663,11 @@ for phase in phase_handler:
             logging.info(' ISI: ' f'{ISI}')
             print("gaze position: ",tracker.getPosition())
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+            
+            #send LSL trigger
+            send_trigger([str(trial_counter) + trial + str(timestamp)])
+            print(f"LSL Trigger sent: {trial_counter}, {trial}, {timestamp}")
+                        
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
             isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
