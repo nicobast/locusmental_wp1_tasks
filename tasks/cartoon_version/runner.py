@@ -1,7 +1,6 @@
 # System and environment settings
 import os
 os.environ['PYTHONUNBUFFERED'] = '1'  # Helps with audio stability
-os.environ["LSL_LOG_LEVEL"] = "error" # removes messages in CMD
 
 # Set preferences early
 from psychopy import prefs

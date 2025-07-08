@@ -9,7 +9,7 @@ files
 
 #paths to files
 path_to_EEG_csv<-files[1]
-path_to_trigger_csv<-files[3]
+path_to_trigger_csv<-files[2]
 
 df_eeg<-fread(path_to_EEG_csv, header=T, sep=',')
 # 36 variables: 1 timestamp, 32 EEG channels, 3 movement channels
@@ -30,9 +30,24 @@ interval_indices <- findInterval(df_eeg$Timestamp, df_trigger$Timestamp)
 interval_indices[interval_indices == 0] <- NA
 
 # Assign trigger names using the interval indices
-df_eeg[, trigger := df_trigger$`0`[interval_indices]]
+df_eeg[, trigger_trial := df_trigger$`1`[interval_indices]]
+df_eeg[, trigger_trialcounter := df_trigger$`0`[interval_indices]]
+df_eeg[, trigger_timestamp := df_trigger$`2`[interval_indices]]
 
 # Save the merged data
 output_path <- 'C:/Users/nico/PowerFolders/project_locusmental_wp1/eeg/data/eeg_with_triggers.csv'
 fwrite(df_eeg, output_path)
 cat("Merged EEG data with triggers saved to:\n", output_path)
+
+#data checking
+names(df_eeg)
+table(df_eeg$trigger_trial)
+table(df_eeg$trigger_trialcounter)
+
+#remove task unrelated data
+df_eeg<-df_eeg[!is.na(df_eeg$trigger_trial),]
+df_eeg$ts_trial<-unlist(lapply(table(df_eeg$trigger_trialcounter),seq_len))
+
+hist(df_eeg$ts_trial)
+
+

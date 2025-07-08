@@ -5,7 +5,7 @@
 # Miscellaneous: Hide messages in console from pygame:
 import os # 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
-os.environ["LSL_LOG_LEVEL"] = "error" # removes messages in CMD
+os.environ["LSL_LOG_LEVEL"] = "fatal" # removes messages in CMD
 
 '''LOAD MODULES'''
 from psychopy import visual, core, event, clock, data, gui, monitors
@@ -89,7 +89,7 @@ audio_device = config["constants"]["audio"]["device"]
 info = StreamInfo(
     name='Markers',           # Stream name (must match what you select in LabRecorder)
     type='Markers',           # Stream type (must match in LabRecorder)
-    channel_count=1,          # 1 for simple triggers
+    channel_count=3,          # 1 for simple triggers
     nominal_srate=0,          # Irregular sampling rate for event markers
     channel_format='string',  # Markers are usually strings
     source_id='stimulus_stream'  # Unique ID for your experiment/session
@@ -274,7 +274,7 @@ kb = keyboard.Keyboard()
 #Send a trigger (marker) function
 def send_trigger(marker):
     # marker must be a list of strings, length = channel_count
-    outlet.push_sample([str(marker)])
+    outlet.push_sample(marker)
 
 # Random interstimulus interval (SI):
 def define_ISI_interval():
@@ -616,9 +616,8 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
 
             #send LSL trigger
-            send_trigger([str(trial_counter) + standard + str(timestamp)])
-            print(f"LSL Trigger sent: {trial_counter}, {standard}, {timestamp}")
-
+            send_trigger([str(trial_counter), standard, str(timestamp)])
+            
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
             isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
@@ -665,8 +664,7 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
             
             #send LSL trigger
-            send_trigger([str(trial_counter) + trial + str(timestamp)])
-            print(f"LSL Trigger sent: {trial_counter}, {trial}, {timestamp}")
+            send_trigger([str(trial_counter), trial, str(timestamp)])
                         
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
@@ -701,6 +699,11 @@ for phase in phase_handler:
         logging.info(' START OF BASELINE PHASE')
         timestamp = time.time() 
         timestamp_exp = core.getTime()
+
+        #send LSL trigger
+        send_trigger([str(baseline_trial_counter), phase, str(timestamp)])
+            
+        # baseline presentation:
         [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
 
         # Save data in .csv file:
