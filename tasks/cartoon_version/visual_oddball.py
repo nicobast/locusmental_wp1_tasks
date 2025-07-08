@@ -18,6 +18,8 @@ import traceback
 import json
 import sys
 import pandas as pd
+#send trigger via LSL
+from pylsl import StreamInfo, StreamOutlet
 
 
 # Load the config file
@@ -75,7 +77,7 @@ fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr
 # Experiment handler
 exp = data.ExperimentHandler(
     name=task_name,
-    version='0.1',
+    version='0.2',
     dataFileName=str(trials_data_folder / fileName),
 )
 
@@ -86,6 +88,17 @@ print(f"Test Mode (testmode_et): {testmode_et}")
 sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
 background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
 size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
+
+#Create the LSL stream
+info = StreamInfo(
+    name='Markers',           # Stream name (must match what you select in LabRecorder)
+    type='Markers',           # Stream type (must match in LabRecorder)
+    channel_count=3,          # 1 for simple triggers
+    nominal_srate=0,          # Irregular sampling rate for event markers
+    channel_format='string',  # Markers are usually strings
+    source_id='stimulus_stream'  # Unique ID for your experiment/session
+)
+outlet = StreamOutlet(info)
 
 # Access values
 audio_device = config["constants"]["audio"]["device"]
@@ -151,6 +164,11 @@ io = launchHubServer(**iohub_config,
 tracker = io.devices.tracker
 tracker.setRecordingState(True)
 print(tracker)
+
+#Send a trigger (marker) function
+def send_trigger(marker):
+    # marker must be a list of strings, length = channel_count
+    outlet.push_sample(marker)
 
 # Draw figure for gaze contincency, when gaze is offset:
 def draw_gazedirect(background_color = background_color_rgb):
@@ -368,7 +386,8 @@ ISI_DURATION = 1500 / 1000  # 1500ms
 FIXATION_TIME = 5  # 10s fixation cross
 
 # ==== Trial Structure ====
-TOTAL_TRIALS = 75 
+#TOTAL_TRIALS = 75 
+TOTAL_TRIALS = 10 # For testing purposes, set to 75 trials as default
 STANDARD_RATIO = 0.8
 ODDBALL_RATIO = 0.2
 
@@ -487,6 +506,9 @@ def run_experiment():
 
     logging.info('Starting experiment')
     start_time = core.getTime()
+
+    #send LSL trigger
+    send_trigger(['start', 'visual oddball', str(start_time)])
     
     trial_sequence = ['baseline_fixation'] + create_trial_sequence()
     trials = data.TrialHandler(
@@ -507,6 +529,10 @@ def run_experiment():
                 timestamp_exp = core.getTime()
                 baseline_fixation_start = core.getTime()
                 
+                #send LSL trigger
+                send_trigger([str(baseline_trial_counter), trial_type, str(timestamp_exp)])
+
+                # Draw the fixation cross for the baseline fixation
                 actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
                     fixation, FIXATION_TIME, background_color=background_color_rgb
                 )
@@ -539,6 +565,9 @@ def run_experiment():
 
             # Stimulus trials (standard/oddball)
             trial_start = core.getTime()
+
+            #send LSL trigger
+            send_trigger([str(trial_counter+1), trial_type, str(trial_start)])
 
             # Run the trial using only run_trial function
             timestamp_exp, stimulus_start, stimulus_end, stimulus_duration, nodata_stimulus, trial_duration, actual_isi_duration, gaze_offset_isi_duration, pause_isi_duration, nodata_isi_duration, ISI_duration_timestamp, ISI_start, ISI_end = run_trial(trial_type)
@@ -580,6 +609,10 @@ def run_experiment():
         timestamp_exp = core.getTime()
         fixation_start = core.getTime()
         
+        #send LSL trigger
+        send_trigger([str(baseline_trial_counter), 'baseline_fixation', str(timestamp_exp)])
+
+        #final baseline presentation
         actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
             fixation, FIXATION_TIME, background_color=background_color_rgb
         )
@@ -608,7 +641,11 @@ def run_experiment():
         exp.nextEntry()
   
         print("\nExperiment Completed")
-        print(f"Total task duration: {core.getTime() - start_time:.3f} seconds")
+        end_time = core.getTime()
+        print(f"Total task duration: {end_time - start_time:.3f} seconds")
+
+        #send LSL trigger
+        send_trigger(['end', 'visual oddball', str(end_time)])
 
     finally:
         print ("Saving data...")

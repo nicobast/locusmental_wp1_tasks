@@ -1,0 +1,455 @@
+{
+    "Amplifier": {
+        "BaseSampleRate": 1000,
+        "Channels": [
+            {
+                "ChannelNumber": 0,
+                "HighPass": 0,
+                "Index": 0,
+                "Label": "EEG 1_1",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 1,
+                "HighPass": 0,
+                "Index": 1,
+                "Label": "EEG 1_2",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 2,
+                "HighPass": 0,
+                "Index": 2,
+                "Label": "EEG 1_3",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 3,
+                "HighPass": 0,
+                "Index": 3,
+                "Label": "EEG 1_4",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 4,
+                "HighPass": 0,
+                "Index": 4,
+                "Label": "EEG 1_5",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 5,
+                "HighPass": 0,
+                "Index": 5,
+                "Label": "EEG 1_6",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 6,
+                "HighPass": 0,
+                "Index": 6,
+                "Label": "EEG 1_7",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 7,
+                "HighPass": 0,
+                "Index": 7,
+                "Label": "EEG 1_8",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 8,
+                "HighPass": 0,
+                "Index": 8,
+                "Label": "EEG 1_9",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 9,
+                "HighPass": 0,
+                "Index": 9,
+                "Label": "EEG 1_10",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 10,
+                "HighPass": 0,
+                "Index": 10,
+                "Label": "EEG 1_11",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 11,
+                "HighPass": 0,
+                "Index": 11,
+                "Label": "EEG 1_12",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 12,
+                "HighPass": 0,
+                "Index": 12,
+                "Label": "EEG 1_13",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 13,
+                "HighPass": 0,
+                "Index": 13,
+                "Label": "EEG 1_14",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 14,
+                "HighPass": 0,
+                "Index": 14,
+                "Label": "EEG 1_15",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 15,
+                "HighPass": 0,
+                "Index": 15,
+                "Label": "EEG 1_16",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 16,
+                "HighPass": 0,
+                "Index": 16,
+                "Label": "EEG 1_17",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 17,
+                "HighPass": 0,
+                "Index": 17,
+                "Label": "EEG 1_18",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 18,
+                "HighPass": 0,
+                "Index": 18,
+                "Label": "EEG 1_19",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 19,
+                "HighPass": 0,
+                "Index": 19,
+                "Label": "EEG 1_20",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 20,
+                "HighPass": 0,
+                "Index": 20,
+                "Label": "EEG 1_21",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 21,
+                "HighPass": 0,
+                "Index": 21,
+                "Label": "EEG 1_22",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 22,
+                "HighPass": 0,
+                "Index": 22,
+                "Label": "EEG 1_23",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 23,
+                "HighPass": 0,
+                "Index": 23,
+                "Label": "EEG 1_24",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 24,
+                "HighPass": 0,
+                "Index": 24,
+                "Label": "EEG 1_25",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 25,
+                "HighPass": 0,
+                "Index": 25,
+                "Label": "EEG 1_26",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 26,
+                "HighPass": 0,
+                "Index": 26,
+                "Label": "EEG 1_27",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 27,
+                "HighPass": 0,
+                "Index": 27,
+                "Label": "EEG 1_28",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 28,
+                "HighPass": 0,
+                "Index": 28,
+                "Label": "EEG 1_29",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 29,
+                "HighPass": 0,
+                "Index": 29,
+                "Label": "EEG 1_30",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 30,
+                "HighPass": 0,
+                "Index": 30,
+                "Label": "EEG 1_31",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 31,
+                "HighPass": 0,
+                "Index": 31,
+                "Label": "EEG 1_32",
+                "LowPass": 262,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 0.0406901054084301,
+                "Type": 0
+            },
+            {
+                "ChannelNumber": 32,
+                "HighPass": 0,
+                "Index": 32,
+                "Label": "X",
+                "LowPass": 50,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 2
+            },
+            {
+                "ChannelNumber": 33,
+                "HighPass": 0,
+                "Index": 33,
+                "Label": "Y",
+                "LowPass": 50,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 2
+            },
+            {
+                "ChannelNumber": 34,
+                "HighPass": 0,
+                "Index": 34,
+                "Label": "Z",
+                "LowPass": 50,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 2
+            },
+            {
+                "ChannelNumber": 35,
+                "HighPass": 0,
+                "Index": 35,
+                "Label": "Trigger Input",
+                "LowPass": 0,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "TriggerInputMask": "FF",
+                "TriggerPrefix": "",
+                "Type": 3
+            },
+            {
+                "ChannelNumber": 36,
+                "HighPass": 0,
+                "Index": 36,
+                "Label": "LOD",
+                "LowPass": 0,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 4
+            },
+            {
+                "ChannelNumber": 37,
+                "HighPass": 0,
+                "Index": 37,
+                "Label": "FLAGS",
+                "LowPass": 0,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 4
+            },
+            {
+                "ChannelNumber": 38,
+                "HighPass": 0,
+                "Index": 38,
+                "Label": "TimeStamp",
+                "LowPass": 0,
+                "ModuleNumber": 0,
+                "RecordingEnabled": true,
+                "Resolution": 1,
+                "Type": 5
+            }
+        ],
+        "Family": "LiveAmp",
+        "Modules": [
+            {
+                "Index": 0,
+                "ModuleID": 1,
+                "Type": "LiveAmp32RS"
+            }
+        ],
+        "SubSampleDivisor": 1,
+        "Type": "LiveAmp32"
+    },
+    "LSL": {
+        "chunkSize": 1,
+        "sampleCounter": false,
+        "sampledMarkersEEG": false,
+        "unsampledMarkers": false
+    },
+    "Version": 1
+}

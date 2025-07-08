@@ -77,10 +77,10 @@ logging.info(f"Participant: {participant_id}, Timepoint: {timepoint}")
 
 # Define tasks
 tasks = [
-    "auditory_oddball"
-    #"cued_visual_search",
-    #"rapid_sound_sequences",
-    #"visual_oddball"
+    "auditory_oddball",
+    "cued_visual_search",
+    "rapid_sound_sequences",
+    "visual_oddball"
 ]
 
 # Monitor and window setup

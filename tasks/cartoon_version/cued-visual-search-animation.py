@@ -1,24 +1,23 @@
 # Import necessary modules
 from psychopy import prefs
 from psychopy.hardware import keyboard
-from psychopy import visual, core, event, sound, gui, data, clock
+from psychopy import visual, core, sound, gui, data, clock
 import tobii_research as tr
 from psychopy.iohub import launchHubServer
 from psychopy.monitors import Monitor
-import random, numpy, time
+import random, numpy
 # Library for managing paths
 from pathlib import Path
 # For logging data in a .log file:
 import logging
 from datetime import datetime
 import os
-import traceback
 from datetime import datetime
 import json
 import sys
-import numpy as np
-import sounddevice as sd
 
+#send trigger via LSL
+from pylsl import StreamInfo, StreamOutlet
 
 # Load the config file
 with open("tasks/cartoon_version/config.json", "r") as file:
@@ -70,7 +69,7 @@ fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
     name = task_name,
-    version = '0.1',
+    version = '0.2',
     #extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
@@ -93,6 +92,17 @@ testmode_et = config["constants"]["eyetracker"]["testmode"]
 sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro Spark = 60Hz, Tobii Pro Spectrum = 300Hz, Tobii TX-300 (ATFZ) = 300 Hz
 background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
 size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
+
+#Create the LSL stream
+info = StreamInfo(
+    name='Markers',           # Stream name (must match what you select in LabRecorder)
+    type='Markers',           # Stream type (must match in LabRecorder)
+    channel_count=3,          # 1 for simple triggers
+    nominal_srate=0,          # Irregular sampling rate for event markers
+    channel_format='string',  # Markers are usually strings
+    source_id='stimulus_stream'  # Unique ID for your experiment/session
+)
+outlet = StreamOutlet(info)
 
 # Access values
 audio_device = config["constants"]["audio"]["device"]
@@ -161,6 +171,11 @@ io = launchHubServer(**iohub_config,
 tracker = io.devices.tracker
 tracker.setRecordingState(True)
 print(tracker)
+
+#Send a trigger (marker) function
+def send_trigger(marker):
+    # marker must be a list of strings, length = channel_count
+    outlet.push_sample(marker)
 
 # Draw figure for gaze contincency, when gaze is offset:
 def draw_gazedirect(background_color = background_color_rgb):
@@ -389,15 +404,14 @@ fixation = visual.ShapeStim(
     lineColor="black"
     )
 
+# EXPERIMENTAL SETTINGS
 FIXATION_TIME = 5 # 5 seconds
 INTER_TRIAL_INTERVAL = 1.5
-
 # Create a beep sound
 beep = sound.Sound(value="A", secs=0.2, volume=1)
-
 # Number of trials
-num_trials = 30
-
+#num_trials = 30
+num_trials = 5 # Set to 5 for testing, change to 30 for full experiment
 # Initialize a trial counter 
 trial_counter = 0
 
@@ -408,8 +422,12 @@ def show_baseline_fixation():
     exp.addLoop(trials)
 
     timestamp_exp = core.getTime()
-    fixation_start = core.getTime()
+    fixation_start = timestamp_exp
 
+    #send LSL trigger
+    send_trigger([str(trial_counter), 'baseline', str(timestamp_exp)])
+
+    #baseline presentation
     actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
         fixation, FIXATION_TIME, background_color=background_color_rgb
     )
@@ -436,6 +454,9 @@ def run_experiment():
     print("Eye-tracking recording started")    
 
     start_time = core.getTime()
+
+    #send LSL trigger
+    send_trigger(['start', 'cued visual search', str(start_time)])
     
      # --- Phase 0: Show Baseline Fixation Cross before trials ---
     show_baseline_fixation()
@@ -453,7 +474,8 @@ def run_experiment():
 
         # --- PHASE 1: Play Inter Stimulus Interval (ISI)  ---
         # 
-        isi_start_time = core.getTime()                  
+        isi_start_time = core.getTime()
+        send_trigger([str(trial + 1), 'isi', str(isi_start_time)])  #send LSL trigger      
         actual_oddball_duration, gaze_offset_duration, pause_duration, nodata_duration = oddball_gazecontingent(
         oddball_object=fixation,  
         duration_in_seconds=INTER_TRIAL_INTERVAL,  
@@ -475,7 +497,8 @@ def run_experiment():
         beep_end_time = 0
         auditory_cue = random.random() < 0.5
         print(f"Trial {trial + 1}: Beep {'Played' if auditory_cue else 'Not Played'}")
-
+        send_trigger([str(trial + 1), str(auditory_cue), str(beep_phase_start_time)])  #send LSL trigger      
+        
         if auditory_cue:
             #beep = sound.Sound(value='A', secs=0.2) 
             pause_cue_duration=0
@@ -581,6 +604,8 @@ def run_experiment():
         print(f"Trial {trial + 1}: Displaying circles")
 
         visual_search_start_time = core.getTime()
+        send_trigger([str(trial + 1), direction, str(visual_search_start_time)])  #send LSL trigger      
+        
         while core.getTime() - visual_search_start_time < 1.5:  # 1.5 seconds
             for circle in circles:
                 circle.draw()
@@ -636,7 +661,11 @@ def run_experiment():
         exp.nextEntry()
 
     print("\nExperiment Completed")
-    print(f"Total duration: {(core.getTime() - start_time)/60:.2f} minutes")
+    end_time = core.getTime()
+    print(f"Total duration: {(end_time - start_time)/60:.2f} minutes")
+
+    #send LSL trigger
+    send_trigger(['end', 'cued visual search', str(end_time)])
 
     # --- SAVE FINAL DATA & CLOSE ---
     #trials.saveAsWideText(fileName, sheetName='trials', appendFile=True)

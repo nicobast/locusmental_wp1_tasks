@@ -40,6 +40,14 @@ README - integrate EEG to battery
 
 
 
+* start Lab Recorder
+
+ 	- load config file provided with repo that has correct naming conventions and marker streams
+
+ 	- these streams can be in RED and will be later picked up by the LabRecorder
+
+ 	- start recording (click yes to both warnings)
+
 * start BrainVIsion LSL Connector
 
  	- setup EEG R-NET cap with correct size (TODO: record cap size)
@@ -48,15 +56,8 @@ README - integrate EEG to battery
 
  	- --> LINK to push EEG LSL stream
 
-* start Lab Recorder
-
- 	- load config file provided with repo that has correct naming conventions and marker streams
-
-&nbsp;	- these streams can be in RED and will be later picked up by the LabRecorder
-
- 	- start recording
-
-* start battery runner.py until dlg box
+* start battery runner.py
+* OPTIONAL: monitor LAbRecorder command to see whether psychopy lsl stream and EEG lsl stream are picked up
 
 
 
@@ -66,8 +67,10 @@ README - integrate EEG to battery
 
 
 
-* currently implemented in auditory\_oddball --> implement to other tasks
-* reduced number of trials
+
+
+* reduced number of trials in all tasks
+* in between cartoon do not play automatically on presentation screen
 * config file for labRecorder needs to be setup on recording PC
 * test with TX300 eye tracking
 * test with caps

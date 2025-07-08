@@ -6,7 +6,6 @@ from psychopy.monitors import Monitor
 import numpy as np
 import numpy
 import random
-import time
 import psychtoolbox as ptb
 import tobii_research as tr
 # Library for managing paths
@@ -18,14 +17,14 @@ import os
 import traceback
 import json
 import sys
-
-prefs.hardware['audioLib'] = ['sounddevice']
+#send trigger via LSL
+from pylsl import StreamInfo, StreamOutlet
 
 # Load the config file
 with open("tasks/cartoon_version/config.json", "r") as file:
     config = json.load(file)
 
-
+#audio configuration
 prefs.hardware['audioLib'] = [config["constants"]["audio"]["Lib"]]
 prefs.hardware['audioDevice'] = config["constants"]["audio"]["device"]
 prefs.hardware['audioSampleRate'] = 48000
@@ -78,7 +77,7 @@ fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
     name = task_name,
-    version = '0.1',
+    version = '0.2',
     dataFileName = str(trials_data_folder / fileName),
     )
 str(trials_data_folder / fileName)
@@ -101,9 +100,16 @@ sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro S
 background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
 size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
 
-# Access values
-audio_device = config["constants"]["audio"]["device"]
-prefs.hardware['audioSampleRate'] = 48000
+#Create the LSL stream
+info = StreamInfo(
+    name='Markers',           # Stream name (must match what you select in LabRecorder)
+    type='Markers',           # Stream type (must match in LabRecorder)
+    channel_count=3,          # 1 for simple triggers
+    nominal_srate=0,          # Irregular sampling rate for event markers
+    channel_format='string',  # Markers are usually strings
+    source_id='stimulus_stream'  # Unique ID for your experiment/session
+)
+outlet = StreamOutlet(info)
 
 # Define screens
 PRESENTATION_SCREEN = config["constants"]["presentation_screen"]
@@ -163,6 +169,11 @@ io = launchHubServer(**iohub_config,
 tracker = io.devices.tracker
 tracker.setRecordingState(True)
 print(tracker)
+
+#Send a trigger (marker) function
+def send_trigger(marker):
+    # marker must be a list of strings, length = channel_count
+    outlet.push_sample(marker)
 
 # Draw figure for gaze contincency, when gaze is offset:
 def draw_gazedirect(background_color = background_color_rgb):
@@ -471,15 +482,19 @@ def cartoon_gazecontingent(anim_object, duration_in_seconds, background_color=ba
         round(nodata_duration, 3)
     ]
 
+# EXPERIMENT SETTINGS
 # Constants
 DURATION_TONE = 0.05
 POOL_SIZE = 20
 MIN_FREQ = 200
 MAX_FREQ = 2000
-CONTROL_TRIALS = 5
-TRANSITION_TRIALS = 10
-TOTAL_TRIALS = CONTROL_TRIALS * 2 + TRANSITION_TRIALS * 2
 INTER_TRIAL_INTERVAL = 2
+# Number of trials
+#CONTROL_TRIALS = 5
+#TRANSITION_TRIALS = 10
+#TOTAL_TRIALS = 8 # Number of trials (not smaller than 8, default: 40)
+CONTROL_TRIALS = 1 #repetitions of REG10 and RAND20
+TRANSITION_TRIALS = 1 #repetitions of REG10-RAND20, REG00-REG1, RAND20-REG10
 
 animation_files = [f"media/cartoons/{i}.mp4" for i in range(1, 40)]
 
@@ -567,15 +582,13 @@ def play_tone_sequence(frequencies, num_repetitions, shuffle=False, name="", tri
 
     return nodata_stimulus, gaze_offset_stimuli, played_sequences  # Return exact played sequences
 
-
 def generate_sequence(frequency_pool, tone_count, with_replacement=False):
     if with_replacement:
         return random.choices(frequency_pool, k=tone_count)
     else:
         return random.sample(frequency_pool, k=tone_count)
     
-
-def generate_reg1_repeated_tone(frequency, tone_duration=0.05, total_duration=3.0, sample_rate=48000):
+def generate_reg1_repeated_tone(frequency, tone_duration=0.05, total_duration=3.0, sample_rate=prefs.hardware['audioSampleRate']):
     samples_per_tone = int(tone_duration * sample_rate)
     num_repeats = int(total_duration / tone_duration)
 
@@ -761,7 +774,7 @@ def present_trial(condition, frequency_pool, trial_num):
 
         # Play the full waveform as one seamless sound
         reg1_frames = int(3 / refresh_rate)
-        reg1_tone = sound.Sound(value=waveform, sampleRate=48000, stereo=True)
+        reg1_tone = sound.Sound(value=waveform, sampleRate=prefs.hardware['audioSampleRate'], stereo=True)
         next_flip = win.getFutureFlipTime(clock='ptb')  # If syncing with screen
         reg1_tone.play(when=next_flip)
         
@@ -833,6 +846,10 @@ def show_baseline_fixation():
     trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
+    #send LSL trigger
+    send_trigger([str(1), 'baseline', str(timestamp_exp)])
+
+    #present baseline fixation cross for FIXATION_TIME seconds
     actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = rapidsequences_gazecontingent(
         fixation, FIXATION_TIME, background_color=background_color_rgb
     )
@@ -885,6 +902,10 @@ def run_experiment():
 
     print("STARTING EXPERIMENT")
     start_time = core.getTime()
+
+    #send LSL trigger
+    send_trigger(['start', 'rapid sound sequences', str(start_time)])
+
     
     # **Start Eye-tracking Recording**,
     tracker.setRecordingState(True)  
@@ -943,6 +964,10 @@ def run_experiment():
 
                     cartoon_start_time = core.getTime()
 
+                    #send LSL trigger
+                    send_trigger([str(trial_number + 1), 'cartoon', str(cartoon_start_time)])
+
+                    #cartoon presentation
                     actual_cartoon_duration, gaze_offset_cartoon_duration, pause_cartoon_duration, nodata_cartoon_duration = cartoon_gazecontingent(
                         fixation_animation, cartoon_timeout, background_color_rgb
                     )
@@ -974,6 +999,10 @@ def run_experiment():
 
                 stimulus_start_time = core.getTime()  # Record start time of the stimulus
 
+                #send LSL trigger
+                send_trigger([str(trial_number + 1), condition, str(stimulus_start_time)])
+
+                # Present the trial based on the condition
                 start_timestamp_0, transition_timestamp_1, end_timestamp_2, nodata_stimulus, gaze_offset_stimuli, played_sequences, reg1_tone = present_trial(condition, frequency_pool, trial_num)
                                 
                 stimulus_end_time = core.getTime()  # Record end time of the stimulus
@@ -1065,8 +1094,12 @@ def run_experiment():
             trial_number += 1
             exp.nextEntry()
 
+        #send LSL trigger
+        end_time = core.getTime()
+        send_trigger(['end', 'rapid sound sequences', str(end_time)])
+
         print("\nExperiment Completed")
-        print(f"Total duration: {core.getTime() - start_time:.2f} seconds")
+        print(f"Total duration: {end_time - start_time:.2f} seconds")
 
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -82,7 +82,7 @@ sampling_rate = config["constants"]["eyetracker"]["sampling_rate"] # Tobii Pro S
 background_color_rgb = config["constants"]["psychopy_window"]["background_color"]
 size_fixation_cross_in_pixels = config["constants"]["psychopy_window"]["size_fixation_cross_in_pixels"]
 
-# Access values
+# Access values - define audio device
 audio_device = config["constants"]["audio"]["device"]
 
 #Create the LSL stream
@@ -144,7 +144,7 @@ fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(
 # The dictionary "settings" is passed to the experiment handler.
 exp = data.ExperimentHandler(
     name=task_name,
-    version='0.2',
+    version='0.3',
     extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
@@ -583,6 +583,11 @@ baseline_trial_counter = 1
 oddball_trial_counter = 1 # trials in oddball_blocks
 standard_trial_counter = 1 #trials in oddball_blocks
 
+#send LSL trigger
+start_time = core.getTime()
+send_trigger(['start', 'auditory oddball', str(start_time)])
+        
+
 for phase in phase_handler:
     block_counter += 1 
 
@@ -616,7 +621,7 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
 
             #send LSL trigger
-            send_trigger([str(trial_counter), standard, str(timestamp)])
+            send_trigger([str(trial_counter+1), standard, str(timestamp_exp)])
             
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
@@ -664,7 +669,7 @@ for phase in phase_handler:
             logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
             
             #send LSL trigger
-            send_trigger([str(trial_counter), trial, str(timestamp)])
+            send_trigger([str(trial_counter+1), trial, str(timestamp_exp)])
                         
             # Stimulus presentation:
             stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
@@ -701,7 +706,7 @@ for phase in phase_handler:
         timestamp_exp = core.getTime()
 
         #send LSL trigger
-        send_trigger([str(baseline_trial_counter), phase, str(timestamp)])
+        send_trigger([str(baseline_trial_counter), phase, str(timestamp_exp)])
             
         # baseline presentation:
         [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
@@ -734,7 +739,11 @@ print("Trial data in phase_handler:", phase_handler.trialList)
 
 '''WRAP UP AND CLOSE'''
 # Send trigger that experiment has ended:
+#send LSL trigger
+end_time = core.getTime()
+send_trigger(['end', 'auditory oddball', str(end_time)])
 print('EXPERIMENT ENDED')
+print(f"Total duration: {end_time - start_time:.2f} seconds")
 logging.info(' EXPERIMENT ENDED.')
 # Close reading from eyetracker:
 tracker.setRecordingState(False)

@@ -8,8 +8,8 @@ files<-list.files('C:/Users/nico/PowerFolders/project_locusmental_wp1/eeg/data/x
 files
 
 #paths to files
-path_to_EEG_csv<-files[1]
-path_to_trigger_csv<-files[2]
+path_to_EEG_csv<-files[5]
+path_to_trigger_csv<-files[6]
 
 df_eeg<-fread(path_to_EEG_csv, header=T, sep=',')
 # 36 variables: 1 timestamp, 32 EEG channels, 3 movement channels
