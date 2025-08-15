@@ -4,7 +4,7 @@ import pandas as pd
 import os
 
 # Load the XDF file
-xdf_file = 'C:/Users/nico/PowerFolders/project_locusmental_wp1/eeg/data/test1_all_T1_08072025.xdf' # Replace with your actual file path
+xdf_file = 'C:/Users/nico/PowerFolders/project_locusmental_wp1/data/eeg/testdata_battery_eeg_Leni13082025/Leni_13082025.xdf' # Replace with your actual file path
 data, header = pyxdf.load_xdf(xdf_file)
 
 #get file name without extension

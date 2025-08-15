@@ -63,11 +63,11 @@ lapply(pkgs, function(pkg) {
 
 # PATHS
 
-home_path <- "C:/Users/iskra_todorova"
-project_path <- "PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL"
-data_path <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/auditory_oddball/"
-data_path_et <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/auditory_oddball/eyetracking"
-data_path_trial <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/auditory_oddball/trialdata"
+home_path <- "C:/Users/nico"
+project_path <- "PowerFolders/project_locusmental_wp1"
+data_path <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/"
+data_path_et <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/eyetracking"
+data_path_trial <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/trialdata"
 datapath <- paste0(home_path, data_path) # .csv + .hdf5 input files
 datapath_et <- paste0(home_path, data_path_et)
 datapath_trial <- paste0(home_path, data_path_trial)

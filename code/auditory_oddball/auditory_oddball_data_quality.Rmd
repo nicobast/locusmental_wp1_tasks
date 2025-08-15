@@ -44,12 +44,12 @@ lapply(pkgs, function(pkg) {
 ```{r load_data, include=FALSE, warning=FALSE}
 # Define paths (adjust to your project)
 
-home_path <- "C:/Users/iskra_todorova"
-data_path <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/auditory_oddball/"
+home_path <- "C:/Users/nico"
+data_path <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/"
 
 
 # Load processed files
-list.files(data_path)
+list.files(paste0(home_path,data_path))
 df_et <- readRDS(paste0(home_path, data_path, "eyetracking_ao.rds"))
 df_trial <- readRDS(paste0(home_path, data_path, "trialdata_ao.rds"))
 

@@ -3,13 +3,13 @@ require(data.table)
 #timestamp have high fractional values that can be displayed with this option in R
 options(digits = 12)
 
-files<-list.files('C:/Users/nico/PowerFolders/project_locusmental_wp1/eeg/data/xdf_to_csv_output',full.names=T)
+files<-list.files('C:/Users/nico/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/eeg',full.names=T)
 
 files
 
 #paths to files
-path_to_EEG_csv<-files[5]
-path_to_trigger_csv<-files[6]
+path_to_EEG_csv<-files[2]
+path_to_trigger_csv<-files[3]
 
 df_eeg<-fread(path_to_EEG_csv, header=T, sep=',')
 # 36 variables: 1 timestamp, 32 EEG channels, 3 movement channels
@@ -50,4 +50,4 @@ df_eeg$ts_trial<-unlist(lapply(table(df_eeg$trigger_trialcounter),seq_len))
 
 hist(df_eeg$ts_trial)
 
-
+hist(unlist(df_eeg[,36]))
