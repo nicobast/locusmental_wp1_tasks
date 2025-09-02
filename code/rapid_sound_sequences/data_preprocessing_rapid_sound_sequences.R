@@ -2,7 +2,7 @@
 # 
 # Rapid Sound Sequences Preprocessing
 # Author: Iskra Todorova
-# Last Update: 16.05.2025
+# Last Update: 15.05.2025
 # R Version: 4.4.2
 #
 ################################################################################
@@ -62,11 +62,11 @@ lapply(pkgs, function(pkg) {
 
 # PATHS
 
-home_path <- "C:/Users/iskra_todorova"
-project_path <- "PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL"
-data_path <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/rapid_sound_sequences/"
-data_path_et <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/rapid_sound_sequences/eyetracking"
-data_path_trial <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/rapid_sound_sequences/trialdata"
+home_path <- "S:/KJP_Studien"
+project_path <- "LOCUS_MENTAL/6_Versuchsdaten"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
+data_path_et <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/eyetracking"
+data_path_trial <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/trialdata"
 datapath <- paste0(home_path, data_path) # .csv + .hdf5 input files
 datapath_et <- paste0(home_path, data_path_et)
 datapath_trial <- paste0(home_path, data_path_trial)
@@ -92,7 +92,7 @@ h5closeAll()
 
 # List names for each subject are unique including date and time of recording.
 # Extract IDs from file names
-id_names <- sub("rapid-sound-sequences_(\\d+)_Test_.+\\.hdf5", "\\1", basename(data_files_et))
+id_names <- sub("rapid-sound-sequences_([A-Za-z]+_\\d+)_Pilot_.+\\.hdf5", "\\1", basename(data_files_et))
 
 # Assign IDs to the list names
 names(list_et_data) <- id_names
@@ -184,7 +184,7 @@ for (i in 1:length(data_files_trial)) {
 list_trial_data <- lapply(list_trial_data, data.frame)
 
 # Extract IDs from filenames
-id_names <- sub("rapid-sound-sequences_(\\d+)_Test_.+\\.csv", "\\1", basename(data_files_trial))
+id_names <- sub("rapid-sound-sequences_([A-Za-z]+_\\d+)_Pilot_.+\\.csv", "\\1", basename(data_files_trial))
 
 # Assign IDs to the list names
 names(list_trial_data) <- id_names
@@ -621,7 +621,7 @@ df <- df %>%
   mutate(
     transition_time_trial = case_when(
       !is.na(transition_timestamp_1) & is.finite(transition_timestamp_1) ~ as.numeric(transition_timestamp_1) - as.numeric(start_timestamp_0),  # Valid transition
-      Condition %in% c("REG10", "RAND20") ~ 3,  # Simulate transition at 5s for these conditions
+      Condition %in% c("REG10", "RAND20") ~ 3,  # Simulate transition at 3s for these conditions
       TRUE ~ NA_real_  # For other cases, return NA
     )
   )
@@ -706,10 +706,10 @@ df_trial <- df_trial %>%
 # Optional: Save as RDS (preserves R attributes)
 saveRDS(
   df_trial,
-  file = paste0(datapath_trial,  "_rss.rds")
+  file = paste0(datapath_trial,  "_rss_c.rds")
 )
 saveRDS(
   df,
-  file = paste0(datapath_et,  "_rss.rds")
+  file = paste0(datapath_et,  "_rss_c.rds")
 )
 

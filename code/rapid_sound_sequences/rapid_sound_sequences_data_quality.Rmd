@@ -1,16 +1,20 @@
 ---
 title: "Rapid Sound Sequences Data Quality and Analysis"
 author: "Iskra Todorova"
-date: "2025-05-16"
-output: html_document
+date: "2025-08-05"
+output: 
+ html_document:
+    toc: true               # shows table of contents (agenda)
+    toc_depth: 3            # how many heading levels to include
+    toc_float: true         # makes the TOC float on the side
+    code_folding: hide      # allows collapsing code blocks (default: shown)
+    number_sections: true   # optional, section numbers
+    theme: flatly           # optional Bootstrap theme (e.g., cerulean, journal)
+    highlight: tango        # syntax highlight style
 ---
 
 ```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-
-library(tidyverse)
-library(ggplot2)
-library(kableExtra)
 
 pkgs <- c("tidyverse",
          "ggplot2", # creating graphs
@@ -20,7 +24,9 @@ pkgs <- c("tidyverse",
          "viridis",
          "DT",
          "kableExtra",
-         "lme4"
+         "lme4", 
+         "emmeans",
+         "lmerTest"
           )
 
 # check if required packages are installed
@@ -42,552 +48,646 @@ lapply(pkgs, function(pkg) {
 ```{r load_data, include=FALSE, warning=FALSE}
 # Define paths (adjust to your project)
 
-home_path <- "C:/Users/iskra_todorova"
-data_path <- "/PowerFolders/R-Project-Locus-Mental/LOCUS-MENTAL/data/rapid_sound_sequences/"
+home_path <- "S:/KJP_Studien"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 
 
 # Load processed files
 list.files(data_path)
-df_et <- readRDS(paste0(home_path, data_path, "eyetracking_rss.rds"))
-df_trial <- readRDS(paste0(home_path, data_path, "trialdata_rss.rds"))
+df_et <- readRDS(paste0(home_path, data_path, "eyetracking_rss_c_optimized.rds"))
+df_trial <- readRDS(paste0(home_path, data_path, "trialdata_rss_c_optimized.rds"))
+
+# Check data structure
+cat("Eye tracking data dimensions:", dim(df_et), "\n")
+cat("Trial data dimensions:", dim(df_trial), "\n")
+cat("Eye tracking columns:", paste(names(df_et), collapse = ", "), "\n")
+cat("Trial columns:", paste(names(df_trial), collapse = ", "), "\n")
 
 ```
 
-### Trial-level metrics 
+# Trial-level metrics 
 
 To assess the quality of eye tracking data across trials, we calculated two key metrics: the gaze offset duration and the gaze nodata duration. These metrics represent, respectively, the total time within a trial that gaze deviated from the center (e.g., off-screen or invalid positions), and the time during which no gaze data was recorded.
 
 We then normalized these durations by the total trial duration to express them as proportions. This allows for fair comparisons across trials of varying durations and helps to identify trials or participants with a high proportion of missing or unreliable gaze data.
 
-```{r , echo=FALSE}
-df_trial <- df_trial %>%
-  filter(Condition != "BASELINE") %>% 
-  group_by(id, Trial.Number) %>%
-  mutate(
-    prop_offset_stim = gaze_offset_stimuli / Stimulus_Duration,
-    prop_nodata_stim = nodata_stimulus / Stimulus_Duration,
-    prop_offset_trial = gaze_offset_stimuli / Trial_Duration,
-    prop_nodata_trial = nodata_stimulus / Trial_Duration,
-  ) %>%
-  ungroup()
+## Gaze Offset and No DaTA
+```{r , echo=TRUE}
+# Check if required columns exist
+required_cols <- c("gaze_offset_stimuli", "nodata_stimulus", "Stimulus_Duration", "Trial_Duration")
+missing_cols <- setdiff(required_cols, names(df_trial))
+
+if(length(missing_cols) > 0) {
+  cat("Warning: Missing columns in df_trial:", paste(missing_cols, collapse = ", "), "\n")
+  cat("Available columns:", paste(names(df_trial), collapse = ", "), "\n")
+} else {
+  df_trial <- df_trial %>%
+    filter(Condition != "BASELINE") %>% 
+    group_by(id, Trial.Number) %>%
+    mutate(
+      prop_offset_trial = gaze_offset_stimuli / Trial_Duration,
+      prop_nodata_trial = nodata_stimulus / Trial_Duration,
+    ) %>%
+    ungroup()
+  
+  # Display summaries
+  cat("Proportion of offset during stimuli:\n")
+  print(summary(df_trial$prop_offset_trial))
+  
+  cat("\nProportion of no data during stimuli:\n")
+  print(summary(df_trial$prop_nodata_trial))
+}
 
 ```
-
-
-```{r}
-summary(df_trial$prop_offset_stim)
+```{r trial_quality_plots, echo=TRUE, fig.width=12, fig.height=8}
+if(length(missing_cols) == 0) {
+  # Create plots
+  p1 <- ggplot(df_trial, aes(x = prop_nodata_trial)) +
+    geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+    labs(title = "Proportion of No Data During Trial",
+         x = "Proportion No Data", y = "Count") +
+    theme_minimal()
+  
+  p2 <- ggplot(df_trial, aes(x = as.factor(id), y = prop_nodata_trial)) +
+    geom_boxplot() +
+    labs(title = "Proportion of Gaze No Data by Participant",
+         x = "Participant", y = "Proportion No data") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  p3 <- ggplot(df_trial, aes(x = prop_offset_trial)) +
+    geom_histogram(bins = 30, fill = "coral", color = "white") +
+    labs(title = "Proportion of Gaze Offset During Trial",
+         x = "Proportion Gaze Offset", y = "Count") +
+    theme_minimal()
+  
+  p4 <- ggplot(df_trial, aes(x = as.factor(id), y = prop_offset_trial)) +
+    geom_boxplot() +
+    labs(title = "Proportion of Gaze Offset by Participant",
+         x = "Participant", y = "Proportion Gaze Offset") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Combine plots
+  (p1 + p2) / (p3 + p4)
+}
 ```
 
-```{r}
-summary(df_trial$prop_nodata_stim)
-```
-```{r}
-summary(df_trial$prop_offset_trial)
-```
+## Trial, Stimulus and ISI Durations
+```{r trial_quality_plots_2, echo=TRUE, fig.width=12, fig.height=8}
 
-```{r}
-summary(df_trial$prop_nodata_trial)
-```
+# Expected durations
+expected_trial_duration <- 8  # e.g., 2s ISI + ~6s Stimulus
+expected_stimulus_duration <- 6
+expected_cartoon_duration <- 2
 
-```{r, echo=FALSE}
-ggplot(df_trial, aes(x = prop_nodata_stim )) +
+# Plot 1: Trial Duration
+p_trial <- ggplot(df_trial, aes(x = Trial_Duration)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = expected_trial_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_trial_duration, y = 0, label = "Expected Duration",
+           color = "red", angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of Trial Duration", x = "Trial Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Plot 2: Stimulus Duration
+p_stimulus <- ggplot(df_trial, aes(x = Stimulus_Duration)) +
   geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-  labs(title = "Proportion of No Data Duration during Stimuli Phase",
-       x = "Proportion No Data", y = "Count")
-```
-
-```{r, echo=FALSE}
-ggplot(df_trial, aes(x = as.factor(id), y = prop_nodata_stim)) +
-  geom_boxplot() +
-  labs(title = "Proportion of Gaze No Data during Stimuli Phase by Participant",
-       x = "Participant", y = "Proportion No data") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  geom_vline(xintercept = expected_stimulus_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_stimulus_duration, y = 0, label = "Expected Duration",
+           color = "red", angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of Stimulus Duration", x = "Stimulus Duration (s)", y = "Count") +
   theme_minimal()
-```
 
-```{r, echo=FALSE}
-ggplot(df_trial, aes(x = prop_offset_stim )) +
+# Plot 3: Cartoon (ISI) Duration
+p_cartoon <- ggplot(df_trial, aes(x = cartoon_actual_duration)) +
   geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-  labs(title = "Proportion of Gaze Offset Duration during Stimuli Phase",
-       x = "Proportion Gaze Offset", y = "Count")+
+  geom_vline(xintercept = expected_cartoon_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_cartoon_duration, y = 0, label = "Expected Duration",
+           color = "red",angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of Cartoon (ISI) Duration", x = "Cartoon Duration (s)", y = "Count") +
   theme_minimal()
-```
-```{r, echo=FALSE}
-ggplot(df_trial, aes(x = as.factor(id), y = prop_offset_stim)) +
-  geom_boxplot() +
-  labs(title = "Proportion of Gaze Offset during Stimuli Phase by Participant",
-       x = "Participant", y = "Proportion Gaze Offset") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  theme_minimal()
-```
 
-## Pupil Dilation (PD) Data 
-
-Exploration of the missing pupil data across participants and trials. We examined the the proportion of missing PD data in the eye-tracking data set. We calculated the percentage of missing PD data for each trial and participant. We consider a 20 % and above missing data proportion in a trial as low quality data. These trials would be further investigated. 
-
-```{r, echo=FALSE}
-na_threshold <- 0.2
-
-# Summarize NA proportion per trial
-trial_na_summary <- df_et %>%
-  group_by(id, Trial.Number) %>%
-  summarise(
-    total_samples = n(),
-    na_count = sum(is.na(pd)),
-    na_prop = mean(is.na(pd)),
-    .groups = "drop"
-  )
-
-# Inspect high-NA trials
-high_na_trials <- trial_na_summary %>%
-  filter(na_prop > na_threshold)
-
-print(high_na_trials)
-```
-
-```{r, echo=FALSE}
-# Filter data for the participant
-participant_data <- df_et %>% 
-  filter(id == 9000) %>% 
-  mutate(sample_index = row_number())
-
-# Plot pupil size over sample index
-ggplot(participant_data, aes(x = sample_index, y = pd)) +
-  geom_line(color = "black", na.rm = TRUE) +
-  geom_point(data = subset(participant_data, is.na(pd)), 
-             aes(x = sample_index, y = 0), 
-             color = "red", shape = 4, size = 2) +
-  labs(
-    title = paste("Pupil Size Over Time - Participant"),
-    x = "Sample Index",
-    y = "Pupil Diameter (pd)"
-  ) +
-  theme_minimal()
-```
-
-The black line represents the pupil diameter across samples, illustrating how the pupil size changes over the course of the entire task. Red marks indicate instances where pupil diameter (PD) data is missing. 
-
-
-```{r, echo=FALSE}
-# Exclude trials with high NAs
-df<- df_et %>%
-  anti_join(high_na_trials, by = c("id", "Trial.Number"))
-```
-
-## Gaze Positions
-
-A further data quality metric we want to asses is the gaze deviations from the center of the screen.
-
-```{r, echo=FALSE}
-
-# Calculate average of left and right eye gaze positions
-df$gaze_x_px = (df$left_gaze_x + df$right_gaze_x) / 2
-df$gaze_y_px = (df$left_gaze_y + df$right_gaze_y) / 2
-
-# Plot Distribution
-
-plot(df$gaze_x_px, df$gaze_y_px, 
-     main = "Raw Gaze Points", 
-     xlab = "X", ylab = "Y", 
-     xlim = c(-1300, 1300), ylim = c(-800, 800))
-abline(h = 0, col = "red")  # y = 0
-abline(v = 0, col = "blue") # x = 0
-
-```
-
-Summaries of raw gaze positions
-```{r}
-summary(df$gaze_x_px)
-```
-
-```{r}
-summary(df$gaze_y_px)
-```
-
-The gaze positions are primarily clustered around the center of the screen (0,0). To facilitate analysis, we converted these coordinates to a screen-based reference frame.
-Some gaze points fall outside the physical boundaries of the monitor, with values exceeding the screen resolution. This occurs because the eye tracker can record gaze estimates that lie beyond the screen edges. 
-
-```{r, echo=FALSE}
-df$gaze_x_screen <- df$gaze_x_px + 2560 / 2
-df$gaze_y_screen <- df$gaze_y_px + 1440 / 2
-
-plot(df$gaze_x_screen, df$gaze_y_screen, 
-     main = "Screen-centered Gaze Points", 
-     xlab = "X", ylab = "Y", 
-     xlim = c(-1300, 1300), ylim = c(-800, 800))
-abline(h = 0, col = "red")  # y = 0
-abline(v = 0, col = "blue") # x = 0
-
-```
-
-Summaries of screen-based gaze positions
-```{r}
-summary(df$gaze_x_screen)
-```
-
-```{r}
-summary(df$gaze_y_screen)
-```
-
-Filter the off-screen values into a separate data frame and create another data frame containing only the valid, on-screen data.
-
-```{r, echo=FALSE}
-# DF Valid (on-screen) gaze points
-df_valid <- df[
-  df$gaze_x_screen >= 0 & df$gaze_x_screen <= 2560 &
-  df$gaze_y_screen >= 0 & df$gaze_y_screen <= 1440,
-]
-
-# DF Off-screen gaze points
-df_offscreen <- df[
-  df$gaze_x_screen < 0 | df$gaze_x_screen > 2560 |
-  df$gaze_y_screen < 0 | df$gaze_y_screen > 1440,
-]
-```
-
-```{r, echo=FALSE}
-# Plot valid  gaze positions
-ggplot(df_valid, aes(x = gaze_x_screen, y = gaze_y_screen)) +
-  geom_hex(bins = 50) +  # Adjust bins to control resolution
-  scale_fill_viridis_c(option = "inferno", trans = "log") +
-  scale_y_reverse() +  # Match screen orientation (top-left origin)
-  coord_fixed(xlim = c(0, 2560), ylim = c(0, 1440)) +
-  theme_minimal() +
-  labs(
-    title = " Plot of Gaze Points",
-    x = "Gaze X (screen px)",
-    y = "Gaze Y (screen px)",
-    fill = "Log Count"
-  )
-```
-
-### Gaze Deviation from center
-
-```{r, echo=FALSE}
-# Define center point
-fix_center_x <- 2560 / 2  # 1280
-fix_center_y <- 1440 / 2  # 720
-threshold_px <- 90 * 3 / 2  # Half of 270 = 135
-
-# Offcenter definition
-# A rectangle centered at (1280, 720), with width and height = 270px (3*90 px, the size of the fixcross)
-# Valid gaze positions
-
-# x ∈ [1280 - 135, 1280 + 135]  => [1145, 1415]
-# y ∈ [720 - 135, 720 + 135]    => [585, 855]
-
-df_valid$gaze_deviated <- with(df_valid, 
-  gaze_x_screen < 1145 | gaze_x_screen > 1415 |
-  gaze_y_screen < 585  | gaze_y_screen > 855
-)
-
-# OR
-# Compute Euclidean distance from fixation cross
-df_valid$gaze_distance <- with(df_valid,
-  sqrt((gaze_x_screen - fix_center_x)^2 + (gaze_y_screen - fix_center_y)^2)
-)
-
-# Label deviation (TRUE if beyond 135px radius)
-df_valid$deviated <- df_valid$gaze_distance > threshold_px
-```
-
-```{r}
-# Overall summary of distances
-summary(df_valid$gaze_distance)
-```
-
-```{r, echo=FALSE}
-ggplot(df_valid, aes(x = gaze_x_screen, y = gaze_y_screen)) +
-  geom_point(aes(color = deviated), alpha = 0.5, size = 1) +
-  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
-  geom_rect(aes(xmin = fix_center_x - threshold_px, xmax = fix_center_x + threshold_px,
-                ymin = fix_center_y - threshold_px, ymax = fix_center_y + threshold_px),
-            fill = NA, color = "blue", linetype = "dashed") +
-  scale_y_reverse() +
-  coord_fixed(xlim = c(0, 2560), ylim = c(0, 1440)) +
-  theme_minimal() +
-  labs(
-    title = "Gaze Positions — Deviated vs. Fixation Cross Area",
-    x = "Gaze X (px)",
-    y = "Gaze Y (px)",
-    color = "Deviation"
-  )
-```
-
-```{r, echo=FALSE}
-df_valid$aoi_label <- with(df_valid,
-  ifelse(
-    gaze_x_screen >= (1280 - 135) & gaze_x_screen <= (1280 + 135) &
-    gaze_y_screen >= (720 - 135)  & gaze_y_screen <= (720 + 135),
-    "AOI", "Offset"
-  )
-)
-```
-
-```{r}
-# Count gaze points in AOI vs Offset
-table(df_valid$aoi_label)
-```
-
-```{r}
-# Calculate proportion AOI vs Offset
-prop.table(table(df_valid$aoi_label)) * 100
-```
-
-AOI proportion per trial
-```{r, echo=FALSE}
-df_sum<- df_valid %>%
-  group_by(id, Trial.Number) %>%
-  summarise(
-    aoi_prop = mean(aoi_label == "AOI", na.rm = TRUE),
-    offset_prop = 1 - aoi_prop
-  )
-```
-
-```{r, echo=FALSE}
-ggplot(df_sum, aes(x = Trial.Number, y = offset_prop, fill = id)) +
-  geom_col(position = "dodge") +
-  theme_minimal() +
-  labs(
-    title = "Proportion of Off-Screen Gaze Points per Trial",
-    x = "Trial ID",
-    y = "Off-Screen Gaze Proportion"
-  )
-```
-
-```{r}
-summary(df_sum$aoi_prop)
+p_trial /p_stimulus/p_cartoon
+# Print plots one below another
+#print(p_trial)
+#print(p_stimulus)
+#print(p_cartoon)
 ```
 ```{r}
-summary(df_sum$offset_prop)
-```
+# Filter trials longer than 9 seconds
+trial_d_outliers <- df_trial %>%
+  filter(Stimulus_Duration > 7)
 
-Calculate mean deviations and proportion of central gaze by trial type (oddball vs. standard), and create corresponding plots
+# Optionally: select only relevant columns for inspection
+df_outliers_summary <- trial_d_outliers %>%
+  select(id, Trial.Number, Condition, Trial_Duration, Stimulus_Duration, cartoon_actual_duration)
 
-```{r, echo=FALSE}
-df_dev<- df_valid %>%
-  filter(!is.na(id)) %>%
-  group_by(id, Condition) %>%
-  summarise(
-    mean_deviation = mean(gaze_distance, na.rm = TRUE),
-    sd_deviation = sd(gaze_distance, na.rm = TRUE),
-    .groups = "drop"
-  )
+# View the number of outliers
+cat("Number of trials with stimulus duration > 6.5s:", nrow(trial_d_outliers), "\n")
 
-df_sum_aoi <- df_valid %>%
-  filter(!is.na(Condition)) %>%
-  group_by(id, Condition) %>%
-  summarise(
-    aoi_prop = mean(aoi_label == "AOI", na.rm = TRUE),
-    .groups = "drop"
-  )
-```
+# Display the summary table
+knitr::kable(df_outliers_summary, caption = "Trials with Stimulus Duration > 7 Seconds")
 
-```{r, echo=FALSE}
-ggplot(df_dev, aes(x = Condition, y = mean_deviation, fill = Condition)) +
-  geom_boxplot() +
-  theme_minimal() +
-  labs(title = "Gaze Deviation by Stimulus Type", y = "Mean Deviation from Center")
-```
-
-```{r, echo=FALSE}
-ggplot(df_sum_aoi, aes(x = Condition, y = aoi_prop, fill = Condition)) +
-  geom_violin(trim = FALSE) +
-  geom_jitter(width = 0.1, alpha = 0.4) +
-  theme_minimal() +
-  labs(title = "AOI Proportion by Stimulus Type", y = "Proportion of Gaze Inside AOI")
-```
-
-
-```{r, echo=FALSE}
-df_var <- df_valid %>%
-  filter(!is.na(id)) %>% 
-  group_by(id, Trial.Number) %>%
-  summarise(
-    gaze_sd = sqrt(sd(gaze_x_screen, na.rm = TRUE)^2 + sd(gaze_y_screen, na.rm = TRUE)^2)
-  )
-
-```
-
-```{r, echo=FALSE}
-ggplot(df_var, aes(x = id, y = gaze_sd)) +
-  geom_boxplot() +
-  theme_minimal() +
-  labs(
-    title = "Gaze Variability per Participant",
-    y = "SD of Gaze from Center",
-    x = "Participant ID"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-```
-
-### Gaze Velocity
-
-Gaze velocity reflects the rate of eye movement across the screen and helps identify potential saccades or periods of instability.
-
-```{r, echo=FALSE}
-df_valid <- df_valid %>%
-   filter(!is.na(id)) %>% 
-  arrange(id, Trial.Number, ts_sequence) %>%
-  group_by(id, Trial.Number) %>%
-  mutate(
-    dx = gaze_x_screen - lag(gaze_x_screen),
-    dy = gaze_y_screen - lag(gaze_y_screen),
-    dt = ts_sequence - lag(ts_sequence),
-    velocity = sqrt(dx^2 + dy^2) / dt
-  )
-```
-
-```{r, echo=FALSE}
-ggplot(df_valid, aes(x = ts_sequence, y = velocity)) +
-  geom_line() +
-  facet_wrap(~id) +
-  theme_minimal() +
-  labs(title = "Gaze Velocity Across Trials", y = "Velocity (px/s)", x = "Time")
-```
-
-```{r, echo=FALSE}
-ggplot(df_valid, aes(x = velocity)) +
-  geom_histogram(bins = 100) +
-  labs(title = "Distribution of Gaze Velocity", x = "Velocity (px/s)") +
-  xlim(c(0,2000))+
-  theme_minimal()
-```
-
-```{r, echo=FALSE}
-velocity_threshold <- 200
-
-df_valid <- df_valid %>%
-  mutate(event_type = if_else(velocity >= velocity_threshold, "Saccade", "Fixation"))
-```
-
-
-# Analysis
-
-```{r}
-# Mixed model for Change in mean PD After transition 
-m1 <- lmer(pd_change ~ Condition + (1|id), data = df_trial)
-anova_m1 <- anova(m1)
-print(anova_m1)
-```
-
-```{r}
-# Check for effects between the control and transition conditions
 df_trial <- df_trial %>%
-  mutate(control_transition = case_when(
-    Condition %in% c("REG10", "RAND20") ~ "Control",
-    Condition %in% c("REG10-RAND20", "RAND20-REG1", "RAND20-REG10") ~ "Transition",
-    TRUE ~ NA_character_  # Assigns NA if any condition is missing
-  ))
+  mutate(
+    outlier_stim_dur = Stimulus_Duration > 6.5,
+    outlier_trial_dur = Trial_Duration > 9,
+    outlier_nodata = prop_nodata_trial > 0.2,
+    outlier_offset = prop_offset_trial > 0.2,
+    
+    # Combine into overall flag
+    is_outlier = outlier_stim_dur | outlier_trial_dur | outlier_nodata | outlier_offset,
+    
+    # Optional: Count how many conditions each trial violates
+    outlier_score = outlier_stim_dur + outlier_trial_dur + outlier_nodata + outlier_offset
+  )
+df_combined_outliers <- df_trial %>%
+  filter(is_outlier) %>%
+  select(id, Trial.Number, Condition,
+         Stimulus_Duration, Trial_Duration,
+         cartoon_actual_duration,
+         outlier_stim_dur, outlier_trial_dur,
+         outlier_nodata, outlier_offset,
+         outlier_score)
 
-# Mixed model for Change in mean PD After transition - isi pd
-m2 <- lmer(pd_change ~ control_transition + (1|id), data = df_trial)
-anova_m2 <- anova(m2)
-print(anova_m2)
+library(DT)
+datatable(
+  df_combined_outliers,
+  options = list(
+    pageLength = 10,
+    scrollX = TRUE
+  ),
+  caption = "Trials Flagged as Outliers Based on Quality Criteria"
+)
+```
+
+# Pupil Dilation (PD) Data 
+
+Exploration of missing pupil data across participants and trials. We examined the proportion of missing PD data in the eye-tracking dataset.
+
+```{r pupil_quality, echo=TRUE}
+# Check if pd column exists
+if(!"pd" %in% names(df_et)) {
+  cat("Warning: 'pd' column not found in eye tracking data\n")
+  cat("Available columns:", paste(names(df_et), collapse = ", "), "\n")
+} else {
+  na_threshold <- 0.2  # 20% threshold 
+  
+  # Summarize NA proportion per trial
+  trial_na_summary <- df_et %>%
+    group_by(id, Trial.Number) %>%
+    summarise(
+      total_samples = n(),
+      na_count = sum(is.na(pd)),
+      na_prop = mean(is.na(pd)),
+      .groups = "drop"
+    )
+  
+  # Inspect high-NA trials
+  high_na_trials <- trial_na_summary %>%
+    filter(na_prop > na_threshold)
+  
+  cat("Trials with >", na_threshold*100, "% missing PD data:\n")
+  print(high_na_trials)
+  
+  # Overall data quality summary
+  cat("\nOverall PD data quality:\n")
+  cat("Total samples:", nrow(df_et), "\n")
+  cat("Missing PD samples:", sum(is.na(df_et$pd)), "\n")
+  cat("Overall missing rate:", round(mean(is.na(df_et$pd)) * 100, 2), "%\n")
+}
+```
+
+```{r pupil_quality_plot, echo=TRUE, fig.width=12, fig.height=6}
+if("pd" %in% names(df_et)) {
+  # Plot pupil size over time with missing data indicators
+  participant_data <- df_et %>% 
+    mutate(sample_index = row_number())
+  
+  p10 <- ggplot(participant_data, aes(x = sample_index, y = pd)) +
+    geom_line(color = "black", na.rm = TRUE, alpha = 0.7) +
+    geom_point(data = subset(participant_data, is.na(pd)), 
+               aes(x = sample_index, y = 0), 
+               color = "red", shape = 4, size = 1) +
+    labs(
+      title = "Pupil Size Over Time (All Participants)",
+      x = "Sample Index",
+      y = "Pupil Diameter (mm)"
+    ) +
+    theme_minimal()
+  
+  # Distribution of missing data by participant
+  missing_by_participant <- df_et %>%
+    group_by(id) %>%
+    summarise(
+      missing_prop = mean(is.na(pd)),
+      .groups = "drop"
+    )
+  
+  p11 <- ggplot(missing_by_participant, aes(x = reorder(id, missing_prop), y = missing_prop)) +
+    geom_col(fill = "steelblue") +
+    labs(
+      title = "Missing PD Data by Participant",
+      x = "Participant ID",
+      y = "Proportion Missing"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_hline(yintercept = na_threshold, color = "red", linetype = "dashed")
+  
+  p10 / p11
+}
+```
+
+
+## Gaze Position Quality Assessment
+
+```{r gaze_preparation, echo=TRUE}
+# Check if gaze columns exist
+gaze_cols <- c("left_gaze_x", "right_gaze_x", "left_gaze_y", "right_gaze_y")
+missing_gaze_cols <- setdiff(gaze_cols, names(df_et))
+
+if(length(missing_gaze_cols) > 0) {
+  cat("Warning: Missing gaze columns:", paste(missing_gaze_cols, collapse = ", "), "\n")
+  cat("Available columns:", paste(names(df_et), collapse = ", "), "\n")
+} else {
+  # Calculate average gaze positions
+  df_et$gaze_x_px <- (df_et$left_gaze_x + df_et$right_gaze_x) / 2
+  df_et$gaze_y_px <- (df_et$left_gaze_y + df_et$right_gaze_y) / 2
+  
+  # Screen parameters
+  monitor_width <- 2560
+  monitor_height <- 1440
+  half_width <- monitor_width / 2
+  half_height <- monitor_height / 2
+  
+  cat("Gaze position summaries:\n")
+  cat("X position: ")
+  print(summary(df_et$gaze_x_px))
+  cat("Y position: ")
+  print(summary(df_et$gaze_y_px))
+}
+```
+
+```{r gaze_plots, echo=TRUE, fig.width=12, fig.height=8}
+# Function for plotting gaze with monitor boundaries
+plot_gaze_with_boundaries <- function(data, half_width, half_height) {
+  # Classify points as on/off monitor
+  data$on_monitor <- abs(data$gaze_x_px) <= half_width & abs(data$gaze_y_px) <= half_height
+  
+  ggplot(data, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_point(aes(color = on_monitor), alpha = 0.3, size = 0.5) +
+    scale_color_manual(values = c("FALSE" = "red", "TRUE" = "blue"),
+                       labels = c("Off Monitor", "On Monitor")) +
+    geom_rect(aes(xmin = -half_width, xmax = half_width,
+                  ymin = -half_height, ymax = half_height),
+              fill = NA, color = "green", linetype = "dashed", size = 1) +
+    geom_vline(xintercept = 0, color = "black", linetype = "dotted") +
+    geom_hline(yintercept = 0, color = "black", linetype = "dotted") +
+    coord_fixed() +
+    theme_minimal() +
+    labs(
+      title = "Gaze Points with Monitor Boundaries",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      color = "Position"
+    ) +
+    theme(legend.position = "right")
+}
+
+if(length(missing_gaze_cols) == 0) {
+  # Remove extreme outliers for better visualization
+  df_plot <- df_et %>%
+    filter(!is.na(gaze_x_px) & !is.na(gaze_y_px)) %>%
+    filter(abs(gaze_x_px) < 3000 & abs(gaze_y_px) < 3000)  # Remove extreme outliers
+  
+  # Raw gaze distribution
+  p1 <- ggplot(df_plot, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_hex(bins = 50) +
+    scale_fill_viridis_c(option = "plasma", trans = "log10") +
+    theme_minimal() +
+    labs(
+      title = "Gaze Position Distribution (Hex Plot)",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      fill = "Log10 Count"
+    ) +
+    geom_vline(xintercept = 0, color = "red", linetype = "dashed") +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed")
+  
+  # Monitor boundaries plot
+  p2 <- plot_gaze_with_boundaries(df_plot, half_width, half_height)
+  
+  p1 / p2
+}
 
 ```
-```{r}
-# Check for effects between the REG and RAND conditions
-df_trial <- df_trial%>%
-  mutate(sequence_start = case_when(
-    Condition %in% c("REG10","REG10-RAND20") ~ "REG",
-    Condition %in% c( "RAND20", "RAND20-REG1", "RAND20-REG10") ~ "RAND",
-    TRUE ~ NA_character_  # Assigns NA if any condition is missing
-  ))
 
-# Mixed model for Change in mean PD After transition 
-m3 <- lmer(pd_change ~ sequence_start + (1|id), data = df_trial)
-anova_m3 <- anova(m3)
-print(anova_m3)
+## Area of Interest (AOI) 
 
+```{r aoi_analysis, echo=TRUE}
+if(length(missing_gaze_cols) == 0) {
+  # Define valid screen coordinates and AOI
+  df_valid <- df_et %>%
+    filter(
+      !is.na(gaze_x_px) & !is.na(gaze_y_px) &
+      abs(gaze_x_px) <= (monitor_width / 2) &
+      abs(gaze_y_px) <= (monitor_height / 2)
+    )
+  
+  # AOI definition (fixation cross area: 270x270 pixels centered at 0,0)
+  aoi_threshold <- 135  # Half of 270 pixels
+  
+  df_valid$aoi_label <- with(df_valid,
+    ifelse(
+      abs(gaze_x_px) <= aoi_threshold & abs(gaze_y_px) <= aoi_threshold,
+      "AOI", "Offset"
+    )
+  )
+  
+  # Calculate gaze distance from center
+  df_valid$gaze_distance <- with(df_valid,
+    sqrt(gaze_x_px^2 + gaze_y_px^2)
+  )
+  
+  df_valid$gaze_deviated <- df_valid$gaze_distance > aoi_threshold
+  
+  # Summary statistics
+  cat("AOI Analysis Results:\n")
+  aoi_table <- table(df_valid$aoi_label)
+  print(aoi_table)
+  cat("\nProportion in AOI vs Offset:\n")
+  print(prop.table(aoi_table) * 100)
+  
+  cat("\nGaze distance summary:\n")
+  print(summary(df_valid$gaze_distance))
+}
 ```
-```{r}
-# Check difference between conditions that start with REG
-REG_df <- subset(df_trial, Condition %in% c("REG10", "REG10-RAND20"))
-m4<- lmer(pd_change ~ Condition + (1|id), data = REG_df)
-anova_m4 <- anova(m4)
-print(anova_m4)
 
+```{r aoi_plots, echo=TRUE, fig.width=12, fig.height=8}
+if(length(missing_gaze_cols) == 0 && exists("df_valid")) {
+  # AOI visualization
+  p1 <- ggplot(df_valid, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_point(aes(color = aoi_label), alpha = 0.3, size = 0.8) +
+    scale_color_manual(values = c("AOI" = "blue", "Offset" = "red")) +
+    geom_rect(aes(xmin = -aoi_threshold, xmax = aoi_threshold,
+                  ymin = -aoi_threshold, ymax = aoi_threshold),
+              fill = NA, color = "blue", linetype = "dashed", size = 1) +
+    coord_fixed() +
+    theme_minimal() +
+    labs(
+      title = "Gaze Points: AOI vs Offset",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      color = "Classification"
+    )
+  
+  # Distance distribution
+  p2 <- ggplot(df_valid, aes(x = gaze_distance)) +
+    geom_histogram(bins = 50, fill = "skyblue", color = "white") +
+    geom_vline(xintercept = aoi_threshold, color = "red", linetype = "dashed") +
+    labs(
+      title = "Distribution of Gaze Distance from Center",
+      x = "Distance from Center (pixels)",
+      y = "Count"
+    ) +
+    theme_minimal()
+  
+  p1 / p2
+}
 ```
-```{r}
-# Check difference between conditions that start with REG
-RAND_df <- subset(df_trial, Condition %in% c("RAND20-REG1", "RAND20-REG10","RAND20"))
-m5 <- lmer(pd_change ~ Condition + (1|id), data = RAND_df)
-anova_m5 <- anova(m5)
-print(anova_m5)
+## Trial-Level AOI Quality Metrics
 
+```{r trial_aoi_analysis, echo=TRUE}
+if(exists("df_valid") && "Trial.Number" %in% names(df_valid)) {
+  # Calculate AOI proportion per trial
+  df_sum_aoi <- df_valid %>%
+    filter(!is.na(Condition)) %>%
+    group_by(id, Trial.Number, Condition) %>%
+    summarise(
+      aoi_prop = mean(aoi_label == "AOI", na.rm = TRUE),
+      mean_gaze_distance = mean(gaze_distance, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Overall summary by condition
+  condition_summary <- df_sum_aoi %>%
+    group_by(Condition) %>%
+    summarise(
+      mean_aoi_prop = mean(aoi_prop, na.rm = TRUE),
+      sd_aoi_prop = sd(aoi_prop, na.rm = TRUE),
+      mean_distance = mean(mean_gaze_distance, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  cat("AOI proportion by condition:\n")
+  print(condition_summary)
+  
+  # Identify problematic trials (low AOI proportion)
+  low_aoi_threshold <- 0.5  # Less than 50% in AOI
+  problematic_trials <- df_sum_aoi %>%
+    filter(aoi_prop < low_aoi_threshold) %>%
+    arrange(aoi_prop)
+  
+  cat("\nTrials with <50% gaze in AOI:\n")
+  print(head(problematic_trials, 10))
+} else {
+  cat("Cannot perform trial-level AOI analysis - missing required data\n")
+}
+```
+```{r trial_aoi_plots, echo=TRUE, fig.width=12, fig.height=6}
+if(exists("df_sum_aoi")) {
+  p1 <- ggplot(df_sum_aoi, aes(x = Condition, y = aoi_prop, fill = Condition)) +
+    geom_boxplot() +
+    geom_jitter(width = 0.2, alpha = 0.3) +
+    theme_minimal() +
+    labs(
+      title = "AOI Proportion by Condition",
+      x = "Condition",
+      y = "Proportion of Gaze in AOI"
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  p2 <- ggplot(df_sum_aoi, aes(x = id, y = aoi_prop)) +
+    geom_boxplot() +
+    labs(
+      title = "AOI Proportion by Participant",
+      x = "Participant ID",
+      y = "Proportion of Gaze in AOI"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  p1 + p2
+}
+```
+
+
+# Statistical Analysis
+``` {r statistical_analysis, echo=TRUE, results= 'asis', message=FALSE, warning=FALSE}
+if (all(c("pd_change", "Condition", "id") %in% names(df_trial))) {
+  cat("### Mixed Effects Models for Pupil Dilation Change\n\n")
+
+  ## --- Model 1: Full Condition Model ---
+  cat("<details><summary><strong>Model 1: Condition Effects</strong></summary>\n\n")
+  m1 <- lmer(pd_change ~ Condition + (1|id), data = df_trial)
+  print(kable(anova(m1), digits = 3) %>%
+          kable_styling(full_width = FALSE))
+  cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+  print(kable(emmeans(m1, pairwise ~ Condition, adjust = "tukey")$contrasts, digits = 3) %>%
+          kable_styling(full_width = FALSE))
+  cat("\n</details>\n\n")
+
+  ## --- Model 2: Control vs Transition ---
+  df_trial <- df_trial %>%
+    mutate(control_transition = case_when(
+      Condition %in% c("REG10", "RAND20") ~ "Control",
+      Condition %in% c("REG10-RAND20", "RAND20-REG1", "RAND20-REG10") ~ "Transition",
+      TRUE ~ NA_character_
+    ))
+
+  if ("control_transition" %in% names(df_trial)) {
+    cat("<details><summary><strong>Model 2: Control vs Transition</strong></summary>\n\n")
+    m2 <- lmer(pd_change ~ control_transition + (1|id), data = df_trial)
+    print(kable(anova(m2), digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+    print(kable(emmeans(m2, pairwise ~ control_transition, adjust = "tukey")$contrasts, digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n</details>\n\n")
+  }
+
+  ## --- Model 3: REG vs RAND Start ---
+  df_trial <- df_trial %>%
+    mutate(sequence_start = case_when(
+      Condition %in% c("REG10", "REG10-RAND20") ~ "REG",
+      Condition %in% c("RAND20", "RAND20-REG1", "RAND20-REG10") ~ "RAND",
+      TRUE ~ NA_character_
+    ))
+
+  if ("sequence_start" %in% names(df_trial)) {
+    cat("<details><summary><strong>Model 3: REG vs RAND Start</strong></summary>\n\n")
+    m3 <- lmer(pd_change ~ sequence_start + (1|id), data = df_trial)
+    print(kable(anova(m3), digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+    print(kable(emmeans(m3, pairwise ~ sequence_start, adjust = "tukey")$contrasts, digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n</details>\n\n")
+  }
+
+  ## --- Model 4: REG Subset ---
+  REG_df <- subset(df_trial, Condition %in% c("REG10", "REG10-RAND20"))
+  if (nrow(REG_df) > 0) {
+    cat("<details><summary><strong>Model 4: REG-only Conditions</strong></summary>\n\n")
+    m4 <- lmer(pd_change ~ Condition + (1|id), data = REG_df)
+    print(kable(anova(m4), digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+    print(kable(emmeans(m4, pairwise ~ Condition, adjust = "tukey")$contrasts, digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n</details>\n\n")
+  }
+
+  ## --- Model 5: RAND Subset ---
+  RAND_df <- subset(df_trial, Condition %in% c("RAND20", "RAND20-REG1", "RAND20-REG10"))
+  if (nrow(RAND_df) > 0) {
+    cat("<details><summary><strong>Model 5: RAND-only Conditions</strong></summary>\n\n")
+    m5 <- lmer(pd_change ~ Condition + (1|id), data = RAND_df)
+    print(kable(anova(m5), digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+    print(kable(emmeans(m5, pairwise ~ Condition, adjust = "tukey")$contrasts, digits = 3) %>%
+            kable_styling(full_width = FALSE))
+    cat("\n</details>\n\n")
+  }
+
+} else {
+  cat("**Required variables for statistical analysis not found.**")
+}
 ```
 
 # Visualizations
+```{r final_visualizations, echo=TRUE, fig.width=12, fig.height=8}
+if(exists("df_valid") && "pd_corrected" %in% names(df_valid) && "ts_sequence" %in% names(df_valid)) {
+  
+  # --- Plot 1: Overall Condition Comparison ---
+  p5 <- ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill = Condition)) +
+    geom_smooth(se = TRUE, size = 1.2, alpha = 0.7) +
+    theme_minimal() +
+    ylim(c(-0.1, 0.4)) +
+    labs(
+      x = "Sequence Time (seconds)",
+      y = "Pupil Dilation Corrected (mm)",
+      title = "Pupil Dilation Changes Across Conditions"
+    ) +  
+    geom_vline(xintercept = 3, linetype = "dashed", color = "black", alpha = 0.7) +
+    annotate("text", x = 3.2, y = 0.35, 
+             label = "Transition", hjust = 0, fontface = "bold") +
+    theme(
+      legend.title = element_text(face = "bold", size = 12),
+      legend.position = "right",
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 11),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14)
+    )
+  print(p5)
 
-```{r, echo=FALSE}
+  # --- Plot 2: Faceted by condition_type ---
+  if("condition_type" %in% names(df_valid)) {
+    p6 <- ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill = Condition)) +
+      geom_smooth(se = TRUE, size = 1.0, alpha = 0.7) +
+      theme_minimal() +
+      ylim(c(-0.1, 0.4)) +
+      facet_wrap(~condition_type, scales = "free") +
+      labs(
+        x = "Sequence Time (seconds)",
+        y = "Pupil Dilation Corrected (mm)",
+        title = "Pupil Dilation: Control vs. Transition Trials"
+      ) +  
+      geom_vline(xintercept = 3, linetype = "dashed", color = "black", alpha = 0.7) +
+      theme(
+        legend.title = element_text(face = "bold", size = 10),
+        legend.position = "bottom",
+        axis.title = element_text(size = 11, face = "bold"),
+        axis.text = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        strip.text = element_text(face = "bold")
+      )
+    print(p6)
+  }
 
-ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill= Condition)) +
-  geom_smooth(se = TRUE, size = 1.2) +
-  theme_minimal() +
-  ylim(c(0, 0.3))+
-  labs(
-    x = "Sequence Time (seconds)",
-    y = "Pupil Dilation Corrected (mm)",
-    title = "Pupil Dilation Change across Conditions"
-  ) +  
-  geom_vline(xintercept = 3, linetype = "dashed", color = "black") +
-  annotate("text", x = 3, y = max(df_valid$pd_corrected, na.rm = TRUE), 
-           label = "Transition", vjust = -0.5, fontface = "bold")  +
-  theme(
-    legend.title = element_text(face = "bold", size = 12),
-    legend.position = "right",
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 12),
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
-  )
+  # --- Plot 3: Faceted by initial_sequence ---
+  if("initial_sequence" %in% names(df_valid)) {
+    p7 <- ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill = Condition)) +
+      geom_smooth(se = TRUE, size = 1.2, alpha = 0.7) +
+      theme_minimal() +
+      ylim(c(0, 0.3)) +
+      facet_wrap(~initial_sequence) +
+      labs(
+        x = "Sequence Time (seconds)",
+        y = "Pupil Dilation Corrected (mm)",
+        title = "Pupil Dilation Change: Initial Sequence Comparison"
+      ) +  
+      geom_vline(xintercept = 3, linetype = "dashed", color = "black") +
+      annotate("text", x = 3, 
+               y = max(df_valid$pd_corrected, na.rm = TRUE) + 0.015, 
+               label = "Transition", vjust = 0, fontface = "bold") +
+      theme(
+        legend.title = element_text(face = "bold", size = 12),
+        legend.position = "right",
+        axis.title = element_text(size = 12, face = "bold"),
+        axis.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        strip.text = element_text(face = "bold")
+      )
+    print(p7)
+  }
+
+} else {
+  cat("Required variables for visualization not found.\n")
+}
+
 ```
 
-```{r, echo=FALSE}
-
-ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill= Condition)) +
-  geom_smooth(se = TRUE, size = 1.2) +
-  theme_minimal() +
-  ylim(c(0, 0.3))+
-  facet_wrap(~initial_sequence)+
-  labs(
-    x = "Sequence Time (seconds)",
-    y = "Pupil Dilation Corrected (mm)",
-    title = "Pupil Dilation Change Initial Sequence Comparison"
-  ) +  
-  geom_vline(xintercept = 3, linetype = "dashed", color = "black") +
-  annotate("text", x = 3, y = max(df_valid$pd_corrected, na.rm = TRUE), 
-           label = "Transition", vjust = -0.5, fontface = "bold")  +
-  theme(
-    legend.title = element_text(face = "bold", size = 12),
-    legend.position = "right",
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 12),
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
-  )
-```
-
-```{r, echo=FALSE}
-
-ggplot(df_valid, aes(x = ts_sequence, y = pd_corrected, color = Condition, fill= Condition)) +
-  geom_smooth(se = TRUE, size = 1.2) +
-  theme_minimal() +
-  ylim(c(0, 0.3))+
-  facet_wrap(~condition_type)+
-  labs(
-    x = "Sequence Time (seconds)",
-    y = "Pupil Dilation Corrected (mm)",
-    title = "Pupil Dilation Change Control vs. Transition Trials"
-  ) +  
-  geom_vline(xintercept = 3, linetype = "dashed", color = "black") +
-  annotate("text", x = 3, y = max(df_valid$pd_corrected, na.rm = TRUE), 
-           label = "Transition", vjust = -0.5, fontface = "bold")  +
-  theme(
-    legend.title = element_text(face = "bold", size = 12),
-    legend.position = "right",
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 12),
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
-  )
-```

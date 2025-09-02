@@ -2,8 +2,8 @@
 # 
 # Auditory Oddball Preprocessing
 # Author: Iskra Todorova
-# Last Update: 08.05.2025
-# R Version: 4.4.2
+# Last Update: 2025-08-14
+# R Version: 4.5.1
 #
 ################################################################################
 # 
@@ -63,11 +63,11 @@ lapply(pkgs, function(pkg) {
 
 # PATHS
 
-home_path <- "C:/Users/nico"
-project_path <- "PowerFolders/project_locusmental_wp1"
-data_path <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/"
-data_path_et <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/eyetracking"
-data_path_trial <- "/PowerFolders/project_locusmental_wp1/data/testdata_battery_eeg_Leni13082025/auditory_oddball/trialdata"
+home_path <- "S:/KJP_Studien"
+project_path <- "LOCUS_MENTAL/6_Versuchsdaten"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
+data_path_et <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/eyetracking"
+data_path_trial <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/trialdata"
 datapath <- paste0(home_path, data_path) # .csv + .hdf5 input files
 datapath_et <- paste0(home_path, data_path_et)
 datapath_trial <- paste0(home_path, data_path_trial)
@@ -94,7 +94,7 @@ h5closeAll()
 
 # List names for each subject are unique including date and time of recording.
 # Extract IDs from file names
-id_names <- sub("auditory-oddball_(\\d+)_Test_.+\\.hdf5", "\\1", basename(data_files_et))
+id_names <- sub("auditory-oddball_([A-Za-z]+_\\d+)_Pilot_.+\\.hdf5", "\\1", basename(data_files_et))
 
 # Assign IDs to the list names
 names(list_et_data) <- id_names
@@ -144,15 +144,20 @@ data_files_trial <- data_files_trial[grepl(".csv", data_files_trial)]
 list_trial_data <- list(0)
 
 trial_variables <- c(
-  "phase",
-  "stimulus_duration",
-  "baseline_trial_counter",
   "trial",
+  "stimulus_duration",
+  "gaze_offset_duration",
+  "trial_pause_duration",
+  "trial_nodata_duration",
+  "baseline_trial_counter",
   "timestamp_exp",
   "oddball_trial_counter",
+  "ISI_expected",
   "ISI_duration",
-  "gaze_offset_duration",
-  "trial_nodata_duration",
+  "ISI_start_time",
+  "ISI_end_time",
+  "stimulus_start_time",
+  "stimulus_end_time",
   "oddball_frequency",
   "standard_frequency"
   )
@@ -164,7 +169,7 @@ for (i in 1:length(data_files_trial)) {
 list_trial_data <- lapply(list_trial_data, data.frame)
 
 # Extract IDs from file names
-id_names <- sub("auditory-oddball_(\\d+)_Test_.+\\.csv", "\\1", basename(data_files_trial))
+id_names <- sub("auditory-oddball_([A-Za-z]+_\\d+)_Pilot_.+\\.csv", "\\1", basename(data_files_trial))
 
 # Assign IDs to the list names
 names(list_trial_data) <- id_names
@@ -202,7 +207,9 @@ list_trial_data<-list_trial_data[!(names(list_trial_data) %in% paste0(unmatched_
 fun_merge_all_ids <- function(et_data, trial_data) {
   # Time variables: eye tracking (logged_time) + trial data (timestamp_exp)
   start_ts <- trial_data$timestamp_exp # trial start
-  end_ts <- dplyr::lead(start_ts)  # c(trial_data$timestamp_exp[-1], NA) # trial end, chanded with lead function
+  #end_ts <- dplyr::lead(start_ts)  # c(trial_data$timestamp_exp[-1], NA) # trial end, chanded with lead function, but excludes the last trial
+  max_ts <- max(et_data$logged_time, na.rm = TRUE) # this includes the last trial
+  end_ts <- c(start_ts[-1], max_ts + 0.1) # this includes the last trial
   et_ts <- et_data$logged_time
   
   # split trial data into list(one row = one trial)
@@ -477,17 +484,17 @@ df <- df %>%
 # df back up
 df_backup <- df
 
-#   3.2) Calculate Baseline Means ----
+#   3.2) Calculate Global Baseline Means ----
 
 # Calculate baseline means 
-baseline_means<- df %>%
+global_baseline_means<- df %>%
   filter(trial == "baseline", baseline_trial_counter == 1) %>%
   group_by(id) %>%
   summarize(baseline_mean = mean(pd, na.rm = TRUE)) %>%
   ungroup()
 
 # Visualization of baseline means distribution
-ggplot(baseline_means, aes(x = "", y = baseline_mean)) +
+ggplot(global_baseline_means, aes(x = "", y = baseline_mean)) +
   geom_boxplot(width = 0.3, fill = "lightgray") +
   geom_jitter(aes(color = id), width = 0.1, size = 3) +
   labs(title = "Distribution of Baseline PD Means",
@@ -500,7 +507,7 @@ ggplot(baseline_means, aes(x = "", y = baseline_mean)) +
 #   4.1) Trial filtering and setup----
 
 # Remove baseline trials from eye tracking df
-df <- subset(df, phase != "baseline")
+df <- subset(df, trial != "baseline")
 
 # Convert ID to character for consistent merging
 df$id <- as.character(df$id)
@@ -508,110 +515,134 @@ df$id <- as.character(df$id)
 # Create backup trial df
 df_trial_backup <- df_trial
 
-# Trial filtering
-# Identify and exclude the last trial
-last_trial_num <- max(df_trial$oddball_trial_counter, na.rm = TRUE)
-print(paste("Last trial number is:", last_trial_num))
-
 # Filter out baseline trial and the last trial
 df_trial<- df_trial %>%
   filter(
-    trial != "baseline",
-    oddball_trial_counter != last_trial_num
-  ) %>%
+    trial != "baseline"
+  ) %>% 
   rename(trial_number = oddball_trial_counter)
 
 #   4.2) Pupil response metrics and data merging ----
 
-# Calculate trial-level pupil metrics:
-# - rpd_auc: Area Under Curve (0-1.5s)
-# - rpd_high: Mean PD in late window (500-1500ms)
-# - rpd_low: Mean PD in baseline window (0-250ms)
+# Convert to data.table
+df_all <- as.data.table(df)
 
-df_et_trial <- lapply(list_split_trial, function(x) {
-  # Skip baseline trials entirely
-  if (unique(x$phase) == "baseline") return(NULL)  # Exclude baseline trials
-  
-  data.frame(
-    id = unique(x$id),
-    trial_number = unique(x$trial_number),
-    rpd_auc = min(AUC(x$ts_trial, x$pd, na.rm = TRUE), 15),  # Cap AUC at 15
-    rpd_high = mean(x$pd[x$ts_trial > 0.500 & x$ts_trial < 1.5], na.rm = TRUE),
-    rpd_low = mean(x$pd[x$ts_trial < 0.250], na.rm = TRUE)
+# BASELINE CORRECTION (ISI-based)
+# Trial-wise baseline correction. Define baseline time window for each trial, last 250 ms from the ISI of the previous trial
+
+# Set baseline window length
+baseline_duration <- 0.250
+
+# Get trial-level ISI end times and calculate baseline windows
+trial_baselines <- df_all[
+  , .(ISI_end = unique(ISI_end_time)[1]), 
+  by = .(id, trial_number)
+][
+  , `:=`(
+    baseline_start = ISI_end - baseline_duration,
+    baseline_end = ISI_end
   )
-}) %>% 
-  bind_rows()  # Combine all trials
+]
 
-# Merge trial metrics with metadata
-df_trial <- df_trial %>%
-  left_join(df_et_trial, by = c("id", "trial_number")) 
+# Join baseline windows to full data
+df_with_baseline <- merge(df_all, trial_baselines,
+                          by = c("id", "trial_number"),
+                          all.x = TRUE)
 
-df_trial <- df_trial%>%
-  left_join(
-    baseline_means, 
-    by = "id"
-  )
+# Calculate baseline PD for each trial (from ISI period)
+baseline_pds <- df_with_baseline[
+  logged_time >= baseline_start & logged_time <= baseline_end,
+  .(mean_baseline_pd = mean(pd, na.rm = TRUE)),
+  by = .(id, trial_number)
+]
 
-df_trial<- df_trial %>% 
-  mutate(
-    # pupil response
-    rpd = rpd_high - rpd_low
-  )
+# Shift baseline to apply to next trial (baseline from trial N applies to trial N+1)
+baseline_pds[, trial_number := trial_number + 1]
 
-# Trial classification
-# Classify trial types and frequencies
-df_trial <- df_trial %>%
-  mutate(
-    pitch = case_when(
-      trial == "oddball" ~ oddball_frequency,
-      trial == "standard" ~ standard_frequency,
-      TRUE ~ NA_real_
-    ),
-    trial = as.factor(ifelse(grepl("oddball", trial), "oddball", "standard"))
-  )
+# Merge baseline values back to main data
+df_all <- merge(df_all, baseline_pds, by = c("id", "trial_number"), all.x = TRUE)
 
-# PD data corrections
+# Drop unnecessary columns and rows
+vars_to_remove <- "baseline_trial_counter"
+df_all[, (vars_to_remove) := NULL]
 
-# Add baseline-corrected PD to raw data
-df <- df %>%
-  left_join(
-    select(df_trial, 
-           id, 
-           trial_number,
-           rpd_low,       # Baseline PD (0-250ms)
-           rpd_high,      # Late-window PD (500-1500ms)
-           rpd,           # Corrected response (high - low)
-           baseline_mean), # Global baseline,
-    by = c("id", "trial_number")
-  )
+# Remove first trial (no baseline available)
+df_all <- df_all[trial_number != 1]
 
-df <- df %>%
-  mutate(trial_corr_rpd = pd - rpd_low) # for every sample
+# CALCULATE RAW PERIOD AVERAGES
 
-# Calculate trial-level mean corrected RPD
-trial_corr_rpd <- df %>%
-  group_by(id, trial_number) %>%
-  summarize(
-    trial_corr_rpd = mean(pd - rpd_low, na.rm = TRUE)  # Mean corrected PD per trial
-  ) %>%
-  ungroup()
+# LOW period: 0–250 ms from trial start
+pd_low <- df_all[ts_trial >= 0 & ts_trial <= 0.25,
+                 .(pd_low = mean(pd, na.rm = TRUE)),
+                 by = .(id, trial_number)]
 
-# Add to trial data
-df_trial <- df_trial %>%
-  left_join(trial_corr_rpd, by = c("id", "trial_number"))
+# HIGH period: 400–1400 ms from trial start  
+pd_high <- df_all[ts_trial >= 0.4 & ts_trial <= 1.7,
+                  .(pd_high = mean(pd, na.rm = TRUE)),
+                  by = .(id, trial_number)]
 
-# 5) Data Saving
+# HIGH period: 750–1500 ms from trial start  
+pd_high_short <- df_all[ts_trial >= 0.75 & ts_trial <= 1.5,
+                  .(pd_high_short = mean(pd, na.rm = TRUE)),
+                  by = .(id, trial_number)]
+
+# Merge period averages to main data
+df_all <- merge(df_all, pd_low, by = c("id", "trial_number"), all.x = TRUE)
+df_all <- merge(df_all, pd_high, by = c("id", "trial_number"), all.x = TRUE)
+df_all <- merge(df_all, pd_high_short, by = c("id", "trial_number"), all.x = TRUE)
+
+# BASELINE CORRECTION
+
+# Correct LOW and HIGH periods for baseline
+df_all[, corr_pd_low := pd_low - mean_baseline_pd]
+df_all[, corr_pd_high := pd_high - mean_baseline_pd]
+df_all[, corr_pd_high_short := pd_high_short - mean_baseline_pd]
+
+# Apply baseline correction to all timepoints
+df_all[, baseline_corr_pd := pd - mean_baseline_pd]
+
+# CALCULATE RELATIVE PUPIL DILATION (RPD)
+
+# RPD = corrected HIGH - corrected LOW
+df_all[, RPD := corr_pd_high - corr_pd_low]
+df_all[, RPD_short := corr_pd_high_short - corr_pd_low]
+
+# CREATE TRIAL-LEVEL SUMMARY
+# Calculate trial-level averages
+trial_level <- df_all[
+  , .(
+    mean_baseline_pd = unique(mean_baseline_pd),
+    pd_low = unique(pd_low),
+    pd_high = unique(pd_high),
+    corr_pd_low = unique(corr_pd_low),
+    corr_pd_high = unique(corr_pd_high),
+    RPD = unique(RPD),
+    RPD_short = unique(RPD_short)
+  ), 
+  by = .(id, trial_number, trial)  
+]
+
+df_trial_all <- merge(df_trial, trial_level, by = c("id", "trial_number", "trial"), all.x = TRUE)
+df_trial_all <- as.data.table(df_trial_all)
+
+# Remove first trial (no baseline available)
+df_trial_all <- df_trial_all[trial_number != 1]
+df_trial_all[, (vars_to_remove) := NULL]
+
+# Ensure trial is properly factored with reference level
+df_trial_all[, trial := relevel(as.factor(trial), ref = "oddball")]
+
+
+# 5) Data Saving ----
 
 # Optional: Save as RDS (preserves R attributes)
 saveRDS(
-  df_trial,
+  df_trial_all,
   file = paste0(datapath_trial,  "_ao.rds")
 )
 saveRDS(
-  df,
+  df_all,
   file = paste0(datapath_et,  "_ao.rds")
 )
-
-
 
 
