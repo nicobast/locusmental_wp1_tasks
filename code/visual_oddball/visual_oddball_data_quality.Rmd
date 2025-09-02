@@ -1,0 +1,487 @@
+---
+title: "visual_oddball_data_quality"
+author: "Iskra Todorova"
+date: "2025-08-07"
+output: 
+  html_document:
+        toc: true               # shows table of contents (agenda)
+        toc_depth: 3            # how many heading levels to include
+        toc_float: true         # makes the TOC float on the side
+        code_folding: hide      # allows collapsing code blocks (default: shown)
+        number_sections: true   # optional, section numbers
+        theme: flatly           # optional Bootstrap theme (e.g., cerulean, journal)
+        highlight: tango        # syntax highlight style
+---
+
+```{r setup,echo = FALSE, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+pkgs <- c("tidyverse",
+         "ggplot2", # creating graphs
+         "dplyr",
+         "patchwork",
+         "knitr",
+         "viridis",
+         "DT",
+         "kableExtra",
+         "lme4",
+         "lmerTest",
+         "emmeans"
+          )
+
+# check if required packages are installed
+installed_packages = pkgs %in% rownames(installed.packages())
+
+# install packages if not installed
+if (any(installed_packages == FALSE)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+lapply(pkgs, function(pkg) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    message(paste("Package", pkg, "not found."))
+  }
+})
+```
+
+```{r load_data, include=FALSE, warning=FALSE}
+# Define paths (adjust to your project)
+
+home_path <- "S:/KJP_Studien"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball/"
+
+# Load processed files
+df_et <- readRDS(paste0(home_path, data_path, "eyetracking_processed.rds"))
+df_trial <- readRDS(paste0(home_path, data_path, "trialdata_processed.rds"))
+
+```
+
+# Trial-Level Metrics
+## Trial Duration, Stimulus Duration and ISI Duration
+```{r}
+# Display summaries
+  cat("Trial Duration:\n")
+  print(summary(df_trial$trial_duration))
+  
+  cat("\nStimulus Duration:\n")
+  print(summary(df_trial$stimulus_duration))
+  
+  cat("\nISI Duration:\n")
+  print(summary(df_trial$actual_isi_duration))
+```
+
+```{r trial_quality_plots_2, echo=TRUE, fig.width=12, fig.height=8}
+
+# Expected durations
+expected_trial_duration <- 1.7 # e.g., 1.5s ISI + ~150ms Stimulus
+expected_stimulus_duration <- 0.15
+expected_isi_duration <- 1.5
+
+# Plot 1: Trial Duration
+p1 <- ggplot(df_trial%>% 
+               filter(!trial_duration > 4), aes(x = trial_duration)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = expected_trial_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_trial_duration, y = 0, label = "Expected Max Duration",
+           color = "red", angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of Trial Duration", x = "Trial Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Plot 2: Stimulus Duration
+p2 <- ggplot(df_trial, aes(x = stimulus_duration)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = expected_stimulus_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_stimulus_duration, y = 0, label = "Expected Duration",
+           color = "red", angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of Stimulus Duration", x = "Stimulus Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Plot 3: ISI Duration
+p3 <- ggplot(df_trial%>% 
+               filter(!actual_isi_duration > 3), aes(x = actual_isi_duration)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = expected_isi_duration, linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = expected_isi_duration, y = 0, label = "Expected Max Duration",
+           color = "red",angle = 0, vjust = -0.7, size = 3) +
+  labs(title = "Distribution of ISI Duration", x = "ISI Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Print plots
+p1 /p2 /p3
+
+```
+## Proportions of missing data, gaze offset durations and pause duration during the trials
+
+```{r , echo=TRUE}
+# Check if required columns exist
+required_cols <- c("gaze_offset_isi_duration", "nodata_isi_duration","nodata_stimulus", "pause_isi_duration" ,"stimulus_duration", "trial_duration")
+missing_cols <- setdiff(required_cols, names(df_trial))
+
+if(length(missing_cols) > 0) {
+  cat("Warning: Missing columns in df_trial:", paste(missing_cols, collapse = ", "), "\n")
+  cat("Available columns:", paste(names(df_trial), collapse = ", "), "\n")
+} else {
+  df_trial <- df_trial %>%
+    group_by(id, trial_number) %>%
+    mutate(
+      prop_offset_trial = gaze_offset_isi_duration / trial_duration,
+      prop_nodata_trial = nodata_isi_duration + nodata_stimulus / trial_duration,
+      prop_pause_trial = pause_isi_duration/ trial_duration
+    ) %>%
+    ungroup()
+  
+  # Display summaries
+  cat("Proportion of offset during stimuli:\n")
+  print(summary(df_trial$prop_offset_trial))
+  
+  cat("\nProportion of no data during stimuli:\n")
+  print(summary(df_trial$prop_nodata_trial))
+  
+  cat("\nProportion of pause during stimuli:\n")
+  print(summary(df_trial$prop_pause_trial))
+}
+
+```
+```{r trial_quality_plots, echo=TRUE, fig.width=12, fig.height=10}
+if(length(missing_cols) == 0) {
+  # Create plots
+  p1 <- ggplot(df_trial, aes(x = prop_nodata_trial)) +
+    geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+    labs(title = "Proportion of No Data During Trial",
+         x = "Proportion No Data", y = "Count") +
+    theme_minimal()
+  
+  p2 <- ggplot(df_trial, aes(x = as.factor(id), y = prop_nodata_trial)) +
+    geom_boxplot() +
+    labs(title = "Proportion of Gaze No Data by Participant",
+         x = "Participant", y = "Proportion No data") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  p3 <- ggplot(df_trial, aes(x = prop_offset_trial)) +
+    geom_histogram(bins = 30, fill = "coral", color = "white") +
+    labs(title = "Proportion of Gaze Offset During Trial",
+         x = "Proportion Gaze Offset", y = "Count") +
+    theme_minimal()
+  
+  p4 <- ggplot(df_trial, aes(x = as.factor(id), y = prop_offset_trial)) +
+    geom_boxplot() +
+    labs(title = "Proportion of Gaze Offset by Participant",
+         x = "Participant", y = "Proportion Gaze Offset") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  p5 <- ggplot(df_trial, aes(x = prop_pause_trial)) +
+    geom_histogram(bins = 30, fill = "coral", color = "white") +
+    labs(title = "Proportion of Pause During Trial",
+         x = "Proportion Pause", y = "Count") +
+    theme_minimal()
+  
+  p6 <- ggplot(df_trial, aes(x = as.factor(id), y = prop_pause_trial)) +
+    geom_boxplot() +
+    labs(title = "Proportion of Pause by Participant",
+         x = "Participant", y = "Proportion Pause") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Combine plots
+  (p1 + p2) / (p3 + p4) / (p5 + p6)
+}
+```
+
+
+```{r }
+# Filter trials longer than 2.2 seconds
+trial_d_outliers <- df_trial %>%
+  filter(trial_duration > 1.7)
+
+```
+
+# Pupil Dilation (PD) Data 
+
+## Misisng PD data
+Exploration of the missing pupil data across participants and trials. We examined the the proportion of missing PD data in the eye-tracking data set. We calculated the percentage of missing PD data for each trial and participant. We consider a 20 % and above missing data proportion in a trial as low quality data. These trials would be further investigated. Trials with missing data over 50% should be excluded.
+
+```{r, echo=FALSE}
+na_threshold <- 0.2 # change to 0.5?
+
+# Summarize NA proportion per trial
+trial_na_summary <- df_et %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    total_samples = n(),
+    na_count = sum(is.na(pd)),
+    na_prop = mean(is.na(pd)),
+    .groups = "drop"
+  )
+
+# Inspect high-NA trials
+high_na_trials <- trial_na_summary %>%
+  filter(na_prop > na_threshold)
+
+print(high_na_trials)
+```
+```{r  echo=FALSE}
+# Exclude trials with high NAs
+df<- df_et %>%
+  anti_join(high_na_trials, by = c("id", "trial_number"))
+```
+
+```{r pupil_quality_plot, echo=TRUE, fig.width=12, fig.height=6}
+if("pd" %in% names(df)) {
+  # Plot pupil size over time with missing data indicators
+  participant_data <- df %>% 
+    mutate(sample_index = row_number())
+  
+  p1 <- ggplot(participant_data, aes(x = sample_index, y = pd)) +
+    geom_line(color = "black", na.rm = TRUE, alpha = 0.7) +
+    geom_point(data = subset(participant_data, is.na(pd)), 
+               aes(x = sample_index, y = 0), 
+               color = "red", shape = 4, size = 1) +
+    labs(
+      title = "Pupil Size Over Time (All Participants)",
+      x = "Sample Index",
+      y = "Pupil Diameter (mm)"
+    ) +
+    theme_minimal()
+  
+  # Distribution of missing data by participant
+  missing_by_participant <- df%>%
+    group_by(id) %>%
+    summarise(
+      missing_prop = mean(is.na(pd)),
+      .groups = "drop"
+    )
+  
+  p2 <- ggplot(missing_by_participant, aes(x = reorder(id, missing_prop), y = missing_prop)) +
+    geom_col(fill = "steelblue") +
+    labs(
+      title = "Missing PD Data by Participant",
+      x = "Participant ID",
+      y = "Proportion Missing"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_hline(yintercept = na_threshold, color = "red", linetype = "dashed")
+  
+  p1 / p2
+}
+```
+
+## Gaze Position Quality Assessment
+
+```{r gaze_preparation, echo=TRUE}
+# Check if gaze columns exist
+gaze_cols <- c("left_gaze_x", "right_gaze_x", "left_gaze_y", "right_gaze_y")
+missing_gaze_cols <- setdiff(gaze_cols, names(df))
+
+if(length(missing_gaze_cols) > 0) {
+  cat("Warning: Missing gaze columns:", paste(missing_gaze_cols, collapse = ", "), "\n")
+  cat("Available columns:", paste(names(df), collapse = ", "), "\n")
+} else {
+  # Calculate average gaze positions
+  df$gaze_x_px <- (df$left_gaze_x + df$right_gaze_x) / 2
+  df$gaze_y_px <- (df$left_gaze_y + df$right_gaze_y) / 2
+  
+  # Screen parameters
+  monitor_width <- 2560
+  monitor_height <- 1440
+  half_width <- monitor_width / 2
+  half_height <- monitor_height / 2
+  
+  cat("Gaze position summaries:\n")
+  cat("X position: ")
+  print(summary(df$gaze_x_px))
+  cat("Y position: ")
+  print(summary(df$gaze_y_px))
+}
+```
+```{r gaze_plots, echo=TRUE, fig.width=12, fig.height=8}
+# Function for plotting gaze with monitor boundaries
+plot_gaze_with_boundaries <- function(data, half_width, half_height) {
+  # Classify points as on/off monitor
+  data$on_monitor <- abs(data$gaze_x_px) <= half_width & abs(data$gaze_y_px) <= half_height
+  
+  ggplot(data, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_point(aes(color = on_monitor), alpha = 0.3, size = 0.5) +
+    scale_color_manual(values = c("FALSE" = "red", "TRUE" = "blue"),
+                       labels = c("Off Monitor", "On Monitor")) +
+    geom_rect(aes(xmin = -half_width, xmax = half_width,
+                  ymin = -half_height, ymax = half_height),
+              fill = NA, color = "green", linetype = "dashed", size = 1) +
+    geom_vline(xintercept = 0, color = "black", linetype = "dotted") +
+    geom_hline(yintercept = 0, color = "black", linetype = "dotted") +
+    coord_fixed() +
+    theme_minimal() +
+    labs(
+      title = "Gaze Points with Monitor Boundaries",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      color = "Position"
+    ) +
+    theme(legend.position = "right")
+}
+
+if(length(missing_gaze_cols) == 0) {
+  # Remove extreme outliers for better visualization
+  df_plot <- df %>%
+    filter(!is.na(gaze_x_px) & !is.na(gaze_y_px)) %>%
+    filter(abs(gaze_x_px) < 3000 & abs(gaze_y_px) < 3000)  # Remove extreme outliers
+  
+  # Raw gaze distribution
+  p1 <- ggplot(df_plot, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_hex(bins = 50) +
+    scale_fill_viridis_c(option = "plasma", trans = "log10") +
+    theme_minimal() +
+    labs(
+      title = "Gaze Position Distribution (Hex Plot)",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      fill = "Log10 Count"
+    ) +
+    geom_vline(xintercept = 0, color = "red", linetype = "dashed") +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed")
+  
+  # Monitor boundaries plot
+  p2 <- plot_gaze_with_boundaries(df_plot, half_width, half_height)
+  
+  p1 / p2
+}
+
+```
+
+## Area of Interest (AOI) 
+
+```{r aoi_analysis, echo=TRUE}
+if(length(missing_gaze_cols) == 0) {
+  # Define valid screen coordinates and AOI
+  df_valid <- df %>%
+    filter(
+      !is.na(gaze_x_px) & !is.na(gaze_y_px) &
+      abs(gaze_x_px) <= (monitor_width / 2) &
+      abs(gaze_y_px) <= (monitor_height / 2)
+    )
+  
+  # AOI definition (fixation cross area: 270x270 pixels centered at 0,0)
+  aoi_threshold <- 135  # Half of 270 pixels
+  
+  df_valid$aoi_label <- with(df_valid,
+    ifelse(
+      abs(gaze_x_px) <= aoi_threshold & abs(gaze_y_px) <= aoi_threshold,
+      "AOI", "Offset"
+    )
+  )
+  
+  # Calculate gaze distance from center
+  df_valid$gaze_distance <- with(df_valid,
+    sqrt(gaze_x_px^2 + gaze_y_px^2)
+  )
+  
+  df_valid$gaze_deviated <- df_valid$gaze_distance > aoi_threshold
+  
+  # Summary statistics
+  cat("AOI Analysis Results:\n")
+  aoi_table <- table(df_valid$aoi_label)
+  print(aoi_table)
+  cat("\nProportion in AOI vs Offset:\n")
+  print(prop.table(aoi_table) * 100)
+  
+  cat("\nGaze distance summary:\n")
+  print(summary(df_valid$gaze_distance))
+}
+```
+
+```{r aoi_plots, echo=TRUE, fig.width=12, fig.height=8}
+if(length(missing_gaze_cols) == 0 && exists("df_valid")) {
+  # AOI visualization
+  p1 <- ggplot(df_valid, aes(x = gaze_x_px, y = gaze_y_px)) +
+    geom_point(aes(color = aoi_label), alpha = 0.3, size = 0.8) +
+    scale_color_manual(values = c("AOI" = "blue", "Offset" = "red")) +
+    geom_rect(aes(xmin = -aoi_threshold, xmax = aoi_threshold,
+                  ymin = -aoi_threshold, ymax = aoi_threshold),
+              fill = NA, color = "blue", linetype = "dashed", size = 1) +
+    coord_fixed() +
+    theme_minimal() +
+    labs(
+      title = "Gaze Points: AOI vs Offset",
+      x = "Gaze X (pixels)",
+      y = "Gaze Y (pixels)",
+      color = "Classification"
+    )
+  
+  # Distance distribution
+  p2 <- ggplot(df_valid, aes(x = gaze_distance)) +
+    geom_histogram(bins = 50, fill = "skyblue", color = "white") +
+    geom_vline(xintercept = aoi_threshold, color = "red", linetype = "dashed") +
+    labs(
+      title = "Distribution of Gaze Distance from Center",
+      x = "Distance from Center (pixels)",
+      y = "Count"
+    ) +
+    theme_minimal()
+  
+  p1 / p2
+}
+```
+
+# Statistical Analysis
+
+```{r exclude_offset, echo=TRUE}
+# unique ids and trails combination
+valid_trials <- df_valid %>%
+  distinct(id, trial_number)
+
+df_trial_filtered <- df_trial %>%
+  semi_join(valid_trials, by = c("id", "trial_number"))
+```
+
+```{r model1, echo=TRUE,results= 'asis', message=FALSE, warning=FALSE}
+ cat("## Mixed Effects Model for RPD\n\n")
+
+  ## --- Model 1 ---
+  cat("<details><summary><strong>Model 1: Condition Effects</strong></summary>\n\n")
+  m1 <- lmer(RPD ~ condition + (1|id), data = df_trial_filtered)
+  print(kable(anova(m1), digits = 3) %>%
+          kable_styling(full_width = FALSE))
+  cat("\n\n**Pairwise Comparisons (Tukey adjusted):**\n\n")
+  emm <- emmeans(m1, pairwise ~ condition, adjust = "tukey")
+  print(kable(emm$contrasts, digits = 3) %>%
+          kable_styling(full_width = FALSE))
+  cat("\n</details>\n\n")
+```
+
+# Visualizations
+```{r emmeans_plot, echo=TRUE, fig.width=7, fig.height=5}
+# Plot emmeans with comparisons
+plot(emm, comparisons = TRUE)
+```
+
+```{r , echo=FALSE, fig.width=14, fig.height=8}
+p1 <-ggplot(df_valid, aes(x = ts_trial, y = baseline_corr_pd, fill= condition, color = condition)) +
+  geom_smooth() +
+  xlim(c(0,2))+
+  labs(
+    title = " Baseline Corrected RPD Oddball vs. Standard, only AOI",
+    x = "Time(s)",
+    y = "Corrected RPD"
+  ) +
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+p2 <-ggplot(df, aes(x = ts_trial, y = baseline_corr_pd, fill= condition, color = condition)) +
+  geom_smooth() +
+  xlim(c(0,2))+
+  labs(
+    title = " Baseline Corrected RPD Oddball vs. Standard, AOI + Offset",
+    x = "Time(s)",
+    y = "Corrected RPD"
+  ) +
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+p1 +p2
+```
+
+
+
+
