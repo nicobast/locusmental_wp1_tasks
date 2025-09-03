@@ -343,6 +343,10 @@ def run_task(task_name, task_path):
     duration = task_end_time - task_start_time
     logging.info(f"Finished {task_name}: {duration:.2f} sec ({duration / 60:.2f} min)")
 
+# Pre-select 3 unique videos without replacement
+video_selection = random.sample(video_files, min(3, len(video_files)))
+video_idx = 0  # To track which video to show next
+
 # --- MAIN LOOP ---
 if __name__ == "__main__":
     try:
@@ -358,9 +362,9 @@ if __name__ == "__main__":
                 run_task(task_name, task_script)
 
                 # Show video between tasks (not after last task)
-                if idx < len(tasks) - 1 and video_files:
-                    # Select a random video
-                    selected_video = random.choice(video_files)
+                if idx < len(tasks) - 1 and video_idx < len(video_selection):
+                    selected_video = video_selection[video_idx]
+                    video_idx += 1  # Move to next video for next inter-task slot
                     
                     # Try FFplay first, then fall back to external player
                     if not play_video_ffplay(str(selected_video)):

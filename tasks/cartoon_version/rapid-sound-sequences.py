@@ -6,6 +6,7 @@ from psychopy.monitors import Monitor
 import numpy as np
 import numpy
 import random
+import time
 import psychtoolbox as ptb
 import tobii_research as tr
 # Library for managing paths
@@ -1108,6 +1109,8 @@ def run_experiment():
          # Save and close ExperimentHandler
         #trials.saveAsExcel(str(fileName), appendFile=True)
         #exp.saveAsPickle(str(fileName))
+        exp.saveAsWideText(str(trials_data_folder / (fileName + ".csv")), delim=",")
+        exp.saveAsPickle(str(trials_data_folder / (fileName + ".psydat")))
 
         win.close()
         core.quit()

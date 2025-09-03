@@ -62,28 +62,31 @@ participant_id = sys.argv[1]
 timepoint = sys.argv[2]
 print(f"Participant ID: {participant_id}, Timepoint: {timepoint}")
 
-selected_timepoint = timepoint[0]  # Get the first item from the list
+selected_timepoint = timepoint # Get the first item from the list
 # Name for output data:
 fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
 
+# Number of trials
+num_trials = 30
+#num_trials = 5 # Set to 5 for testing, change to 30 for full experiment
+# Initialize a trial counter 
+
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
-    name = task_name,
-    version = '0.2',
-    #extraInfo = settings,
-    dataFileName = str(trials_data_folder / fileName),
-    )
-str(trials_data_folder / fileName)
-
-# Define TrialHandler for managing trial-level data
-trials = data.TrialHandler(
-    nReps=1,  # Number of repetitions for the trial set
-    method='random',  # Can also be 'random' for randomized trials
-    trialList=None,  # If you have predefined trial conditions, you can specify them here
-    name='trials'  # Name of the trial set
+    name=task_name,
+    version='0.2',
+    dataFileName=str(trials_data_folder / fileName),
+    savePickle=True,
+    saveWideText=True
 )
 
-# Add the TrialHandler to the ExperimentHandler
+trials = data.TrialHandler(
+    nReps=1,
+    method='random',
+    trialList=[{}] * num_trials,  # one row per trial
+    name='trials'
+)
+
 exp.addLoop(trials)
 
 # testmode options
@@ -409,32 +412,28 @@ FIXATION_TIME = 5 # 5 seconds
 INTER_TRIAL_INTERVAL = 1.5
 # Create a beep sound
 beep = sound.Sound(value="A", secs=0.2, volume=1)
-# Number of trials
-#num_trials = 30
-num_trials = 5 # Set to 5 for testing, change to 30 for full experiment
-# Initialize a trial counter 
+
 trial_counter = 0
 
 # --- PHASE 0: Baseline Fixation Cross (Only Once Before Trials Start) ---
 def show_baseline_fixation():
     print("Displaying Baseline Fixation Cross for 5 seconds.")
+
     trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
     exp.addLoop(trials)
 
     timestamp_exp = core.getTime()
     fixation_start = timestamp_exp
 
-    #send LSL trigger
     send_trigger([str(trial_counter), 'baseline', str(timestamp_exp)])
 
-    #baseline presentation
     actual_fixation_duration, gaze_offset_fixation, pause_fixation, nodata_fixation = oddball_gazecontingent(
         fixation, FIXATION_TIME, background_color=background_color_rgb
     )
     fixation_end = core.getTime()
     fixation_duration = round(fixation_end - fixation_start, 3)
 
-    # Save fixation baseline data separately
+    # Save baseline into exp (not trials!)
     exp.addData('timestamp_exp', timestamp_exp)
     exp.addData('baseline_fixation_start_timestamp', fixation_start)
     exp.addData('baseline_fixation_end_timestamp', fixation_end)
@@ -444,7 +443,7 @@ def show_baseline_fixation():
     exp.addData('baseline_fixation_pause_duration', pause_fixation)
     exp.addData('baseline_fixation_nodata_duration', nodata_fixation)
 
-    exp.nextEntry()  # Move to next row in data file
+    exp.nextEntry()
 
 def run_experiment():
 
@@ -458,218 +457,221 @@ def run_experiment():
     #send LSL trigger
     send_trigger(['start', 'cued visual search', str(start_time)])
     
-     # --- Phase 0: Show Baseline Fixation Cross before trials ---
-    show_baseline_fixation()
+    try:
+        # --- Phase 0: Show Baseline Fixation Cross before trials ---
+        show_baseline_fixation()
 
-    # Trial loop
-    for trial in range(num_trials):
-        pause_duration= 0
-        nodata_visual_search = 0
-        print(f"\n----TRIAL {trial + 1}----")
+        # Trial loop
+        for trial in range(num_trials):
+            pause_duration= 0
+            nodata_visual_search = 0
+            print(f"\n----TRIAL {trial + 1}----")
 
-        timestamp_exp = core.getTime()
-        trial_start_time = timestamp_exp
-        trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
-        exp.addLoop(trials)
+            timestamp_exp = core.getTime()
+            trial_start_time = timestamp_exp
+            trials = data.TrialHandler(trialList=None, method='sequential', nReps=1)
+            exp.addLoop(trials)
+            
+            # --- PHASE 1: Play Inter Stimulus Interval (ISI)  ---
+            # 
+            isi_start_time = core.getTime()
+            send_trigger([str(trial + 1), 'isi', str(isi_start_time)])  #send LSL trigger      
+            actual_oddball_duration, gaze_offset_duration, pause_duration, nodata_duration = oddball_gazecontingent(
+            oddball_object=fixation,  
+            duration_in_seconds=INTER_TRIAL_INTERVAL,  
+            background_color = background_color_rgb   
+            )
+                    
+            isi_end_time = core.getTime()  # Get end time after ISI
+            isi_actual_duration = round(isi_end_time - isi_start_time,3)
+            print(f"Inter Stimulus Interval, Duration: {isi_actual_duration}")
+            print(f"ISI Expected Duration: {INTER_TRIAL_INTERVAL}")
 
-        # --- PHASE 1: Play Inter Stimulus Interval (ISI)  ---
-        # 
-        isi_start_time = core.getTime()
-        send_trigger([str(trial + 1), 'isi', str(isi_start_time)])  #send LSL trigger      
-        actual_oddball_duration, gaze_offset_duration, pause_duration, nodata_duration = oddball_gazecontingent(
-        oddball_object=fixation,  
-        duration_in_seconds=INTER_TRIAL_INTERVAL,  
-        background_color = background_color_rgb   
-        )
+            # --- PHASE 2: Beep Phase ---
+            print(f"\nTrial {trial + 1}: Starting beep phase")
+            beep_phase_start_time = core.getTime()
+
+            nodata_beep_interval = 0  # Track no data during beep
+            beep_duration = 0
+            beep_start_time = 0
+            beep_end_time = 0
+            auditory_cue = random.random() < 0.5
+            print(f"Trial {trial + 1}: Beep {'Played' if auditory_cue else 'Not Played'}")
+            send_trigger([str(trial + 1), str(auditory_cue), str(beep_phase_start_time)])  #send LSL trigger      
+            
+            if auditory_cue:
+                #beep = sound.Sound(value='A', secs=0.2) 
+                pause_cue_duration=0
+                pause_cue_duration += check_keypress()
+                delay_frames = int(random.uniform(0, 0.1) / refresh_rate)
+                beep_frames = int(random.uniform(0.2, 0.3) / refresh_rate)
+                total_frames = int(0.4 / refresh_rate)
+                remaining_frames = total_frames - (delay_frames + beep_frames)
                 
-        isi_end_time = core.getTime()  # Get end time after ISI
-        isi_actual_duration = round(isi_end_time - isi_start_time,3)
-        print(f"Inter Stimulus Interval, Duration: {isi_actual_duration}")
-        print(f"ISI Expected Duration: {INTER_TRIAL_INTERVAL}")
+                delay_duration = round(delay_frames * refresh_rate, 3)
+                expected_beep_duration = round(beep_frames * refresh_rate,3)
+                print(f"Trial {trial + 1}: Delay frames = {delay_frames} ({delay_duration} sec)")
+                print(f"Trial {trial + 1}: Beep frames = {beep_frames} ({expected_beep_duration} sec)")
+                print(f"Trial {trial + 1}: Remaining frames = {remaining_frames}")
 
-        # --- PHASE 2: Beep Phase ---
-        print(f"\nTrial {trial + 1}: Starting beep phase")
-        beep_phase_start_time = core.getTime()
+                # Delay phase
+                for frame in range(delay_frames):
+                    if check_nodata(tracker.getPosition()):
+                        nodata_beep_interval += refresh_rate
+                    win.flip()
 
-        nodata_beep_interval = 0  # Track no data during beep
-        beep_duration = 0
-        beep_start_time = 0
-        beep_end_time = 0
-        auditory_cue = random.random() < 0.5
-        print(f"Trial {trial + 1}: Beep {'Played' if auditory_cue else 'Not Played'}")
-        send_trigger([str(trial + 1), str(auditory_cue), str(beep_phase_start_time)])  #send LSL trigger      
-        
-        if auditory_cue:
-            #beep = sound.Sound(value='A', secs=0.2) 
-            pause_cue_duration=0
-            pause_cue_duration += check_keypress()
-            delay_frames = int(random.uniform(0, 0.1) / refresh_rate)
-            beep_frames = int(random.uniform(0.2, 0.3) / refresh_rate)
-            total_frames = int(0.4 / refresh_rate)
-            remaining_frames = total_frames - (delay_frames + beep_frames)
+                # Play beep
+                beep_start_time = core.getTime()
+                
+                next_flip = win.getFutureFlipTime(clock='ptb')
             
-            delay_duration = round(delay_frames * refresh_rate, 3)
-            expected_beep_duration = round(beep_frames * refresh_rate,3)
-            print(f"Trial {trial + 1}: Delay frames = {delay_frames} ({delay_duration} sec)")
-            print(f"Trial {trial + 1}: Beep frames = {beep_frames} ({expected_beep_duration} sec)")
-            print(f"Trial {trial + 1}: Remaining frames = {remaining_frames}")
+                beep.play(when=next_flip) 
+                        
+                print(f"Trial {trial + 1}: Beep STARTED at {beep_start_time}")
+                for frame in range(beep_frames):
+                    if check_nodata(tracker.getPosition()):
+                        nodata_beep_interval += refresh_rate
+                    win.flip()
+                beep.stop()
 
-            # Delay phase
-            for frame in range(delay_frames):
-                if check_nodata(tracker.getPosition()):
-                    nodata_beep_interval += refresh_rate
-                win.flip()
+                beep_end_time = core.getTime()
+                beep_duration= round(beep_end_time - beep_start_time, 3)
+                print(f"Trial {trial + 1}: Beep STOPPED, actual duration = {beep_duration} sec")
 
-            # Play beep
-            beep_start_time = core.getTime()
+                # Remaining time after beep
+                for frame in range(remaining_frames):
+                    if check_nodata(tracker.getPosition()):
+                        nodata_beep_interval += refresh_rate
+                    win.flip()
             
-            next_flip = win.getFutureFlipTime(clock='ptb')
-        
-            beep.play(when=next_flip) 
-                      
-            print(f"Trial {trial + 1}: Beep STARTED at {beep_start_time}")
-            for frame in range(beep_frames):
-                if check_nodata(tracker.getPosition()):
-                    nodata_beep_interval += refresh_rate
+            else:
+                for frame in range(int(0.4 / refresh_rate)):  # No beep - just wait 400ms
+                    if check_nodata(tracker.getPosition()):
+                        nodata_beep_interval += refresh_rate
+                    win.flip()
+                # No beep case - Set expected_beep_duration to 0 or None
+                expected_beep_duration = 0
+                delay_duration = 0
+
+            beep_phase_end_timestamp = core.getTime()
+            beep_phase_duration = round(core.getTime() - beep_phase_start_time, 3)
+            print(f"Trial {trial + 1}: No data during beep interval = {nodata_beep_interval:.3f} seconds")
+            print(f"Trial {trial + 1}: Beep phase completed in {beep_phase_duration:.3f} seconds")
+            print(f"Trial {trial + 1}: Beep duration = {beep_duration:.3f} seconds")
+
+            # ---  PHASE 3: Visual Search (Target Stimulus) ---
+            pause_visual_search_duration = 0
+            pause_visual_search_duration += check_keypress()
+            # Isoluminant colors for green, red, and yellow 
+            # (RGB values would be green: (-1,1,-1), red: (1,-1,-1), yellow: (1,1,-1))
+            isoluminant_colors = {
+            "green": (0, 131, 0),
+            "red": (255, 0, 0),
+            "yellow": (86,86, 0)
+            }
+
+            # Select base and odd colors using their names
+            base_color_name = random.choice(list(isoluminant_colors.keys()))
+            odd_color_name = random.choice([c for c in isoluminant_colors if c != base_color_name]) # Ensure odd color is different from base color
+            
+            # Get RGB values
+            base_color = isoluminant_colors[base_color_name]
+            odd_color = isoluminant_colors[odd_color_name]
+            
+            circle_colors = [base_color] * 4  # creates a list of 4 elements which are set to one base_color
+            odd_index = random.randint(0, 3) # randomly chosen index of the 4 positions in the list of circles, which determines the position od the odd-colored ball
+            circle_colors[odd_index] = odd_color # the index is replaced with the odd_color
+            circle_position = circle_positions[odd_index]
+            # Determine the direction based on the odd_index
+            if odd_index == 0:
+                direction = "Top"
+            elif odd_index == 1:
+                direction = "Right"
+            elif odd_index == 2:
+                direction = "Bottom"
+            elif odd_index == 3:
+                direction = "Left"
+
+            # Print the direction for debugging
+            print(f"Trial {trial + 1}: Target Position: {direction} ({circle_position})")
+            
+            # Set the positions and colors for the circles
+            for i, (circle, color) in enumerate(zip(circles, circle_colors)):
+                circle.fillColor = color
+                if i == odd_index:
+                    circle.pos = circle_position  # Set position for the odd-colored circle
+            
+            print(f"Trial {trial + 1}: Displaying circles")
+
+            visual_search_start_time = core.getTime()
+            send_trigger([str(trial + 1), direction, str(visual_search_start_time)])  #send LSL trigger      
+            
+            while core.getTime() - visual_search_start_time < 1.5:  # 1.5 seconds
+                for circle in circles:
+                    circle.draw()
+
+                if check_nodata(tracker.getPosition()):  # Check for no data
+                    nodata_visual_search += refresh_rate
                 win.flip()
-            beep.stop()
 
-            beep_end_time = core.getTime()
-            beep_duration= round(beep_end_time - beep_start_time, 3)
-            print(f"Trial {trial + 1}: Beep STOPPED, actual duration = {beep_duration} sec")
+            actual_stimulus_duration = round(core.getTime() - visual_search_start_time, 3)
+            print(f"Trial {trial + 1}: No data during circles = {nodata_visual_search:.3f} seconds")
+            print(f"Trial {trial + 1}: Visual search phase completed in {actual_stimulus_duration:.3f} seconds")
+            
 
-            # Remaining time after beep
-            for frame in range(remaining_frames):
-                if check_nodata(tracker.getPosition()):
-                    nodata_beep_interval += refresh_rate
-                win.flip()
-        
-        else:
-            for frame in range(int(0.4 / refresh_rate)):  # No beep - just wait 400ms
-                if check_nodata(tracker.getPosition()):
-                    nodata_beep_interval += refresh_rate
-                win.flip()
-            # No beep case - Set expected_beep_duration to 0 or None
-            expected_beep_duration = 0
-            delay_duration = 0
-
-        beep_phase_end_timestamp = core.getTime()
-        beep_phase_duration = round(core.getTime() - beep_phase_start_time, 3)
-        print(f"Trial {trial + 1}: No data during beep interval = {nodata_beep_interval:.3f} seconds")
-        print(f"Trial {trial + 1}: Beep phase completed in {beep_phase_duration:.3f} seconds")
-        print(f"Trial {trial + 1}: Beep duration = {beep_duration:.3f} seconds")
-
-        # ---  PHASE 3: Visual Search (Target Stimulus) ---
-        pause_visual_search_duration = 0
-        pause_visual_search_duration += check_keypress()
-        # Isoluminant colors for green, red, and yellow 
-        # (RGB values would be green: (-1,1,-1), red: (1,-1,-1), yellow: (1,1,-1))
-        isoluminant_colors = {
-        "green": (0, 131, 0),
-        "red": (255, 0, 0),
-        "yellow": (86,86, 0)
-        }
-
-        # Select base and odd colors using their names
-        base_color_name = random.choice(list(isoluminant_colors.keys()))
-        odd_color_name = random.choice([c for c in isoluminant_colors if c != base_color_name]) # Ensure odd color is different from base color
-        
-        # Get RGB values
-        base_color = isoluminant_colors[base_color_name]
-        odd_color = isoluminant_colors[odd_color_name]
-        
-        circle_colors = [base_color] * 4  # creates a list of 4 elements which are set to one base_color
-        odd_index = random.randint(0, 3) # randomly chosen index of the 4 positions in the list of circles, which determines the position od the odd-colored ball
-        circle_colors[odd_index] = odd_color # the index is replaced with the odd_color
-        circle_position = circle_positions[odd_index]
-        # Determine the direction based on the odd_index
-        if odd_index == 0:
-            direction = "Top"
-        elif odd_index == 1:
-            direction = "Right"
-        elif odd_index == 2:
-            direction = "Bottom"
-        elif odd_index == 3:
-            direction = "Left"
-
-        # Print the direction for debugging
-        print(f"Trial {trial + 1}: Target Position: {direction} ({circle_position})")
-        
-        # Set the positions and colors for the circles
-        for i, (circle, color) in enumerate(zip(circles, circle_colors)):
-            circle.fillColor = color
-            if i == odd_index:
-                circle.pos = circle_position  # Set position for the odd-colored circle
-        
-        print(f"Trial {trial + 1}: Displaying circles")
-
-        visual_search_start_time = core.getTime()
-        send_trigger([str(trial + 1), direction, str(visual_search_start_time)])  #send LSL trigger      
-        
-        while core.getTime() - visual_search_start_time < 1.5:  # 1.5 seconds
-            for circle in circles:
-                circle.draw()
-
-            if check_nodata(tracker.getPosition()):  # Check for no data
-                nodata_visual_search += refresh_rate
+            # Ensure the screen is clear after circles
             win.flip()
 
-        actual_stimulus_duration = round(core.getTime() - visual_search_start_time, 3)
-        print(f"Trial {trial + 1}: No data during circles = {nodata_visual_search:.3f} seconds")
-        print(f"Trial {trial + 1}: Visual search phase completed in {actual_stimulus_duration:.3f} seconds")
-        
+            # ---  SAVE TRIAL DATA ---
+            trial_end_time = core.getTime()
+            trial_duration = trial_end_time - trial_start_time
+            print(f'Trial {trial + 1} Duration: {trial_duration:.3f} seconds')
 
-        # Ensure the screen is clear after circles
-        win.flip()
+            trials.addData('timestamp_exp', timestamp_exp)
+            trials.addData('trial_start_timestamp', trial_start_time)
+            trials.addData('trial_end_timestamp', trial_end_time)
+            trials.addData('trial_number', trial + 1)
+            trials.addData('base_color', base_color_name)
+            trials.addData('target_color', odd_color_name)
+            trials.addData('target_position_index', odd_index)
+            trials.addData('target_position', direction)
+            trials.addData('ISI_start_timestamp', isi_start_time)
+            trials.addData('ISI_end_timestamp',isi_end_time)
+            trials.addData("ISI_Gaze_Offset_Duration", gaze_offset_duration)   # from gazecontingent function
+            trials.addData("ISI_nodata_Duration", nodata_duration) #from gazecontingent function
+            trials.addData("ISI_Pause_Duration", pause_duration) # from gazecontingent function
+            trials.addData("Trial_Duration", trial_duration) # calculated within the trial
+            trials.addData("ISI_expected", INTER_TRIAL_INTERVAL) # from the constants
+            trials.addData('ISI_duration_timestamp', isi_actual_duration) # calculated within the trial
+            trials.addData("ISI_actual_duration", actual_oddball_duration) # from gazecontingent function
+            trials.addData('auditory_cue', auditory_cue)
+            trials.addData('beep_phase_start_timestamp', beep_phase_start_time)
+            trials.addData('beep_phase_end_timestamp', beep_phase_end_timestamp)
+            trials.addData('beep_start_timestamp', beep_start_time)
+            trials.addData('beep_end_timestamp', beep_end_time)
+            trials.addData('actual_beep_duration', beep_duration)
+            trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
+            trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
+            trials.addData('actual_beep_phase_duration', beep_phase_duration)
+            trials.addData('delay_beep_phase', delay_duration) # delay before beep, if beep is played
+            trials.addData('actual_visual_search_duration', round(actual_stimulus_duration, 3)) # from timestamp
+            trials.addData('nodata_visual_search', round(nodata_visual_search, 3)) # from check_nodata function
+            trials.addData('trial_duration', round(trial_duration,3)) # from timestamp
+            
+            exp.nextEntry()
 
-        # ---  SAVE TRIAL DATA ---
-        trial_end_time = core.getTime()
-        trial_duration = trial_end_time - trial_start_time
-        print(f'Trial {trial + 1} Duration: {trial_duration:.3f} seconds')
+        print("\nExperiment Completed")
+        end_time = core.getTime()
+        print(f"Total duration: {(end_time - start_time)/60:.2f} minutes")
 
-        trials.addData('timestamp_exp', timestamp_exp)
-        trials.addData('trial_start_timestamp', trial_start_time)
-        trials.addData('trial_end_timestamp', trial_end_time)
-        trials.addData('trial_number', trial + 1)
-        trials.addData('base_color', base_color_name)
-        trials.addData('target_color', odd_color_name)
-        trials.addData('target_position_index', odd_index)
-        trials.addData('target_position', direction)
-        trials.addData('ISI_start_timestamp', isi_start_time)
-        trials.addData('ISI_end_timestamp',isi_end_time)
-        trials.addData("ISI_Gaze_Offset_Duration", gaze_offset_duration)   # from gazecontingent function
-        trials.addData("ISI_nodata_Duration", nodata_duration) #from gazecontingent function
-        trials.addData("ISI_Pause_Duration", pause_duration) # from gazecontingent function
-        trials.addData("Trial_Duration", trial_duration) # calculated within the trial
-        trials.addData("ISI_expected", INTER_TRIAL_INTERVAL) # from the constants
-        trials.addData('ISI_duration_timestamp', isi_actual_duration) # calculated within the trial
-        trials.addData("ISI_actual_duration", actual_oddball_duration) # from gazecontingent function
-        trials.addData('auditory_cue', auditory_cue)
-        trials.addData('beep_phase_start_timestamp', beep_phase_start_time)
-        trials.addData('beep_phase_end_timestamp', beep_phase_end_timestamp)
-        trials.addData('beep_start_timestamp', beep_start_time)
-        trials.addData('beep_end_timestamp', beep_end_time)
-        trials.addData('actual_beep_duration', beep_duration)
-        trials.addData('expected_beep_duration', round(expected_beep_duration, 3))
-        trials.addData('nodata_beep_interval', round(nodata_beep_interval, 3))
-        trials.addData('actual_beep_phase_duration', beep_phase_duration)
-        trials.addData('delay_beep_phase', delay_duration) # delay before beep, if beep is played
-        trials.addData('actual_visual_search_duration', round(actual_stimulus_duration, 3)) # from timestamp
-        trials.addData('nodata_visual_search', round(nodata_visual_search, 3)) # from check_nodata function
-        trials.addData('trial_duration', round(trial_duration,3)) # from timestamp
-        
-        exp.nextEntry()
+        #send LSL trigger
+        send_trigger(['end', 'cued visual search', str(end_time)])
 
-    print("\nExperiment Completed")
-    end_time = core.getTime()
-    print(f"Total duration: {(end_time - start_time)/60:.2f} minutes")
-
-    #send LSL trigger
-    send_trigger(['end', 'cued visual search', str(end_time)])
-
-    # --- SAVE FINAL DATA & CLOSE ---
-    #trials.saveAsWideText(fileName, sheetName='trials', appendFile=True)
-    #exp.saveAsPickle(fileName)
+    finally:
+    # Always executed — even if Esc pressed or error happens
+        print("Saving data safely...")
+        trials.saveAsWideText(str(trials_data_folder / (fileName + ".csv")), delim=",")
+        trials.saveAsPickle(str(trials_data_folder / (fileName + ".psydat")))
 
 
     # Close reading from eyetracker:

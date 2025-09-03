@@ -257,22 +257,20 @@ def draw_gazedirect(background_color = background_color_rgb):
     rect1.draw()
 
 def check_nodata(gaze_position):
-    if gaze_position == None:
-        nodata_boolean = True
-    else:
-        nodata_boolean = False
-    return nodata_boolean
+    """Return True if no gaze data is available."""
+    return gaze_position is None
+
 
 # Get gaze position and offset cutoff.
-gaze_offset_cutoff = 3*size_fixation_cross_in_pixels
-# Then check for the offset of gaze from the center screen.
+gaze_offset_cutoff = 3 * size_fixation_cross_in_pixels
+
 def check_gaze_offset(gaze_position):
-    gaze_center_offset = numpy.sqrt((gaze_position[0])**2 + (gaze_position[1])**2) #pythagoras theorem
-    if gaze_center_offset >= gaze_offset_cutoff:
-        offset_boolean = True
-    else:
-        offset_boolean = False
-    return offset_boolean
+    """
+    Check if gaze is outside the cutoff distance from center.
+    Assumes gaze_position is not None.
+    """
+    gaze_center_offset = numpy.sqrt((gaze_position[0])**2 + (gaze_position[1])**2)  # Pythagoras theorem
+    return gaze_center_offset >= gaze_offset_cutoff
 
 # SETUP KEYBORD
 kb = keyboard.Keyboard()
@@ -386,8 +384,8 @@ ISI_DURATION = 1500 / 1000  # 1500ms
 FIXATION_TIME = 5  # 10s fixation cross
 
 # ==== Trial Structure ====
-#TOTAL_TRIALS = 75 
-TOTAL_TRIALS = 10 # For testing purposes, set to 75 trials as default
+TOTAL_TRIALS = 75 
+#TOTAL_TRIALS = 10 # For testing purposes, set to 75 trials as default
 STANDARD_RATIO = 0.8
 ODDBALL_RATIO = 0.2
 
@@ -650,9 +648,8 @@ def run_experiment():
     finally:
         print ("Saving data...")
         # print("Column names before saving:", trials.data.keys())      
-        #try:
-            #trials.saveAsWideText(str(trials_data_folder / fileName))
-            #exp.saveAsPickle(str(fileName))
+        exp.saveAsWideText(str(trials_data_folder / fileName))
+        exp.saveAsPickle(str(trials_data_folder / fileName))
         # except Exception as e:
        # print(f"Error while saving:{e}")
 

@@ -1,8 +1,8 @@
 {
     "python_env": {
-    "venv_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1/venv_battery/Scripts/python.exe"
+    "venv_path": "C:/Users/ET_Recording/Desktop/locusmental_wp1_tasks/battery_venv/Scripts/python.exe"
     },
-    "task_base_path": "C:/Users/nico/PowerFolders/project_locusmental_wp1",
+    "task_base_path": "C:/Users/ET_Recording/Desktop/locusmental_wp1_tasks/",
     "task_paths": {
       "visual_oddball": "tasks/cartoon_version/visual_oddball.py",
       "cued_visual_search": "tasks/cartoon_version/cued-visual-search-animation.py",
@@ -13,29 +13,29 @@
     "media_folder": "media/between_tasks_videos",
     "constants": {
         "monitor": {
-            "name": "nicoext",
-            "width": 3440,
+            "name": "Display 2",
+            "width": 2560,
             "height": 1440,
             "distance_cm": 60,
-            "width_cm": 110
+            "width_cm": 59.5
         },
         "audio": {
-            "device": "Speakers (Realtek(R) Audio)",
+            "device": "Lautsprecher (Lenovo MS30 Soundbar) (Channels: 2)",
             "latency_mode": 3, 
             "Lib":"ptb"
         },
         "eyetracker": {
-            "testmode": true,
-            "sampling_rate": 300,
-            "device": "Tobii TX-300"
+            "testmode": false,
+            "sampling_rate": 60,
+            "device": "Tobii Pro Spark"
          },
         "psychopy_window": {
             "fullscreen": true,
             "background_color": [0, 0, 0],
             "size_fixation_cross_in_pixels": 90
         },
-        "presentation_screen": 1,
-        "dialog_screen": 0
+        "presentation_screen": 0,
+        "dialog_screen": 1
     },
     "tasks": {
         "auditory-oddball": {

@@ -102,8 +102,7 @@ dialog_screen = config["constants"]["dialog_screen"]
 # Stimuli are presented on internal screen 1.
 presentation_screen =  config["constants"]["presentation_screen"]
 current_screen = presentation_screen  # Start in presentation mode
-#number_of_repetitions = 20
-number_of_repetitions = 2
+number_of_repetitions = 20
 number_of_repetition_standards = 1
 stimulus_duration_in_seconds = 0.1
 # If oddball or standrad stimulus is defined below.
@@ -587,147 +586,152 @@ standard_trial_counter = 1 #trials in oddball_blocks
 start_time = core.getTime()
 send_trigger(['start', 'auditory oddball', str(start_time)])
         
+try:
 
-for phase in phase_handler:
-    block_counter += 1 
+    for phase in phase_handler:
+        block_counter += 1 
 
-    if phase == 'oddball_block':
-        # Sequence for trial handler with 1/5 chance for an oddball.
-        stimulus_sequence = ['standard','standard','standard','standard','oddball'] 
-        # Define a seq uence for trial handler with 3 standard stimuli.
-        standard_sequence = ['standard', 'standard', 'standard']
-        # Trial handler calls the stimulus_sequence and displays it randomized.
-        trials = data.TrialHandler(stimulus_sequence, nReps = number_of_repetitions, method = 'random')
-        # Trial handler for 3 standard stimuli.
-        standards = data.TrialHandler(standard_sequence, nReps = number_of_repetition_standards, method = 'sequential')
-        # Add loop of block to experiment handler. Any collected data will be transferred to experiment handler automatically.
-        exp.addLoop(trials)
-        print('START OF ODDBALL BLOCK')
-        logging.info(' START OF ODDBALL BLOCK.')
+        if phase == 'oddball_block':
+            # Sequence for trial handler with 1/5 chance for an oddball.
+            stimulus_sequence = ['standard','standard','standard','standard','oddball'] 
+            # Define a seq uence for trial handler with 3 standard stimuli.
+            standard_sequence = ['standard', 'standard', 'standard']
+            # Trial handler calls the stimulus_sequence and displays it randomized.
+            trials = data.TrialHandler(stimulus_sequence, nReps = number_of_repetitions, method = 'random')
+            # Trial handler for 3 standard stimuli.
+            standards = data.TrialHandler(standard_sequence, nReps = number_of_repetition_standards, method = 'sequential')
+            # Add loop of block to experiment handler. Any collected data will be transferred to experiment handler automatically.
+            exp.addLoop(trials)
+            print('START OF ODDBALL BLOCK')
+            logging.info(' START OF ODDBALL BLOCK.')
 
-        # Continuing counting after last oddball_block...
-        standard_trial_counter = oddball_trial_counter
+            # Continuing counting after last oddball_block...
+            standard_trial_counter = oddball_trial_counter
 
-        for standard in standards:
-            ISI = define_ISI_interval()
-            timestamp = time.time()
-            timestamp_exp = core.getTime()
-            timestamp_tracker = tracker.trackerTime()
-            print(f'\nTRIAL {trial_counter+1} ({standard.upper()})')
-            logging.info(' NEW TRIAL')
-            print("ISI: ", ISI)
-            logging.info(' ISI: ' f'{ISI}')
-            print("gaze position: ",tracker.getPosition())
-            logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+            for standard in standards:
+                ISI = define_ISI_interval()
+                timestamp = time.time()
+                timestamp_exp = core.getTime()
+                timestamp_tracker = tracker.trackerTime()
+                print(f'\nTRIAL {trial_counter+1} ({standard.upper()})')
+                logging.info(' NEW TRIAL')
+                print("ISI: ", ISI)
+                logging.info(' ISI: ' f'{ISI}')
+                print("gaze position: ",tracker.getPosition())
+                logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
 
-            #send LSL trigger
-            send_trigger([str(trial_counter+1), standard, str(timestamp_exp)])
-            
-            # Stimulus presentation:
-            stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
-            isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
+                #send LSL trigger
+                send_trigger([str(trial_counter+1), standard, str(timestamp_exp)])
+                
+                # Stimulus presentation:
+                stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, standard)
+                isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
 
 
-            # Save data in .csv file:
-            # Information about each phase:
-            phase_handler.addData('phase', phase)
-            #phase_handler.addData('block_counter', block_counter)
-            # Information about each trial: 
-            trials.addData('oddball_trial_counter', standard_trial_counter)
-            trials.addData('trial', standard) 
-            trials.addData('ISI_expected', ISI)
-            trials.addData('ISI_duration', isi_duration)
-            trials.addData('ISI_start_time', isi_start)
-            trials.addData('ISI_end_time', isi_end)
-            trials.addData('gaze_offset_duration', offset_duration)
-            trials.addData('trial_pause_duration', pause_duration)
-            trials.addData('trial_nodata_duration', nodata_duration)
-            trials.addData('timestamp', timestamp) 
-            trials.addData('timestamp_exp', timestamp_exp) 
-            trials.addData('timestamp_tracker', timestamp_tracker)
-            trials.addData('stimulus_duration', stimulus_duration)
-            trials.addData('stimulus_start_time', stim_start)
-            trials.addData('stimulus_end_time', stim_end)
-            
-            trial_counter += 1
-            standard_trial_counter += 1
-            exp.nextEntry()
+                # Save data in .csv file:
+                # Information about each phase:
+                phase_handler.addData('phase', phase)
+                #phase_handler.addData('block_counter', block_counter)
+                # Information about each trial: 
+                trials.addData('oddball_trial_counter', standard_trial_counter)
+                trials.addData('trial', standard) 
+                trials.addData('ISI_expected', ISI)
+                trials.addData('ISI_duration', isi_duration)
+                trials.addData('ISI_start_time', isi_start)
+                trials.addData('ISI_end_time', isi_end)
+                trials.addData('gaze_offset_duration', offset_duration)
+                trials.addData('trial_pause_duration', pause_duration)
+                trials.addData('trial_nodata_duration', nodata_duration)
+                trials.addData('timestamp', timestamp) 
+                trials.addData('timestamp_exp', timestamp_exp) 
+                trials.addData('timestamp_tracker', timestamp_tracker)
+                trials.addData('stimulus_duration', stimulus_duration)
+                trials.addData('stimulus_start_time', stim_start)
+                trials.addData('stimulus_end_time', stim_end)
+                
+                trial_counter += 1
+                standard_trial_counter += 1
+                exp.nextEntry()
 
-        # Continuing counting after 3 standard trials...
-        oddball_trial_counter = standard_trial_counter
+            # Continuing counting after 3 standard trials...
+            oddball_trial_counter = standard_trial_counter
 
-        for trial in trials:
-            ISI = define_ISI_interval() 
+            for trial in trials:
+                ISI = define_ISI_interval() 
+                timestamp = time.time() 
+                timestamp_exp = core.getTime()
+                timestamp_tracker = tracker.trackerTime()
+                print(f'\nTRIAL {trial_counter+1} ({trial.upper()})')  
+                logging.info(' NEW TRIAL')
+                print("ISI: ",ISI)
+                logging.info(' ISI: ' f'{ISI}')
+                print("gaze position: ",tracker.getPosition())
+                logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
+                
+                #send LSL trigger
+                send_trigger([str(trial_counter+1), trial, str(timestamp_exp)])
+                            
+                # Stimulus presentation:
+                stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
+                isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
+
+                # Save data in .csv file:
+                # Information about each phase:
+                phase_handler.addData('phase', phase)
+                # Information about each trial:
+                trials.addData('oddball_trial_counter',oddball_trial_counter) 
+                trials.addData('trial', trial) 
+                trials.addData('timestamp', timestamp) #seconds since 01.01.1970 (epoch)
+                trials.addData('timestamp_exp', timestamp_exp) 
+                trials.addData('timestamp_tracker', timestamp_tracker) 
+                trials.addData('ISI_expected', ISI)
+                trials.addData('ISI_duration', isi_duration)
+                trials.addData('ISI_start_time', isi_start)
+                trials.addData('ISI_end_time', isi_end)
+                trials.addData('gaze_offset_duration', offset_duration)
+                trials.addData('trial_pause_duration', pause_duration)
+                trials.addData('trial_nodata_duration', nodata_duration)
+                trials.addData('stimulus_duration', stimulus_duration)
+                trials.addData('stimulus_start_time', stim_start)
+                trials.addData('stimulus_end_time', stim_end)
+
+                trial_counter += 1
+                oddball_trial_counter += 1
+                exp.nextEntry()
+
+        if phase == 'baseline':
+            print('START OF BASELINE PHASE')
+            logging.info(' START OF BASELINE PHASE')
             timestamp = time.time() 
             timestamp_exp = core.getTime()
-            timestamp_tracker = tracker.trackerTime()
-            print(f'\nTRIAL {trial_counter+1} ({trial.upper()})')  
-            logging.info(' NEW TRIAL')
-            print("ISI: ",ISI)
-            logging.info(' ISI: ' f'{ISI}')
-            print("gaze position: ",tracker.getPosition())
-            logging.info(' GAZE POSITION: ' f'{tracker.getPosition()}')
-            
+
             #send LSL trigger
-            send_trigger([str(trial_counter+1), trial, str(timestamp_exp)])
-                        
-            # Stimulus presentation:
-            stimulus_duration, stim_start, stim_end = present_stimulus(stimulus_duration_in_seconds, trial)
-            isi_duration, isi_start, isi_end, gaze_offset_duration, pause_duration, nodata_duration = run_ISI_with_cartoon(ISI)
+            send_trigger([str(baseline_trial_counter), phase, str(timestamp_exp)])
+                
+            # baseline presentation:
+            [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
 
             # Save data in .csv file:
-            # Information about each phase:
+            # Informatiom about each phase:
             phase_handler.addData('phase', phase)
+            #phase_handler.addData('block_counter', block_counter)
             # Information about each trial:
-            trials.addData('oddball_trial_counter',oddball_trial_counter) 
-            trials.addData('trial', trial) 
-            trials.addData('timestamp', timestamp) #seconds since 01.01.1970 (epoch)
-            trials.addData('timestamp_exp', timestamp_exp) 
-            trials.addData('timestamp_tracker', timestamp_tracker) 
-            trials.addData('ISI_expected', ISI)
-            trials.addData('ISI_duration', isi_duration)
-            trials.addData('ISI_start_time', isi_start)
-            trials.addData('ISI_end_time', isi_end)
-            trials.addData('gaze_offset_duration', offset_duration)
-            trials.addData('trial_pause_duration', pause_duration)
-            trials.addData('trial_nodata_duration', nodata_duration)
-            trials.addData('stimulus_duration', stimulus_duration)
-            trials.addData('stimulus_start_time', stim_start)
-            trials.addData('stimulus_end_time', stim_end)
+            phase_handler.addData('stimulus_duration', stimulus_duration)
+            phase_handler.addData('gaze_offset_duration', offset_duration)
+            phase_handler.addData('trial_pause_duration', pause_duration)
+            phase_handler.addData('trial_nodata_duration', nodata_duration)
+            phase_handler.addData('baseline_trial_counter',baseline_trial_counter)
+            phase_handler.addData('trial', phase)
+            phase_handler.addData('timestamp', timestamp)
+            phase_handler.addData('timestamp_exp', timestamp_exp)
 
-            trial_counter += 1
-            oddball_trial_counter += 1
+            baseline_trial_counter += 1
             exp.nextEntry()
-
-    if phase == 'baseline':
-        print('START OF BASELINE PHASE')
-        logging.info(' START OF BASELINE PHASE')
-        timestamp = time.time() 
-        timestamp_exp = core.getTime()
-
-        #send LSL trigger
-        send_trigger([str(baseline_trial_counter), phase, str(timestamp_exp)])
-            
-        # baseline presentation:
-        [stimulus_duration, offset_duration, pause_duration, nodata_duration] = fixcross_gazecontingent(baseline_duration)
-
-        # Save data in .csv file:
-        # Informatiom about each phase:
-        phase_handler.addData('phase', phase)
-        #phase_handler.addData('block_counter', block_counter)
-        # Information about each trial:
-        phase_handler.addData('stimulus_duration', stimulus_duration)
-        phase_handler.addData('gaze_offset_duration', offset_duration)
-        phase_handler.addData('trial_pause_duration', pause_duration)
-        phase_handler.addData('trial_nodata_duration', nodata_duration)
-        phase_handler.addData('baseline_trial_counter',baseline_trial_counter)
-        phase_handler.addData('trial', phase)
-        phase_handler.addData('timestamp', timestamp)
-        phase_handler.addData('timestamp_exp', timestamp_exp)
-
-        baseline_trial_counter += 1
-        exp.nextEntry()
-
+finally:
+    # This ALWAYS runs, even if a crash occurs
+    print("Saving data safely...")
+    exp.saveAsWideText(str(trials_data_folder / (fileName + ".csv")), delim=",")
+    exp.saveAsPickle(str(trials_data_folder / (fileName + ".psydat")))
 
    # logging.info(f"Saving data to: {trials_data_folder / fileName}")
    # exp.saveAsWideText(str(trials_data_folder / fileName), delim=",")   
