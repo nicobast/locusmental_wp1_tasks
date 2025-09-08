@@ -30,6 +30,7 @@ import logging
 from datetime import datetime
 import json
 import sys
+import csv
 
 #send trigger via LSL
 from pylsl import StreamInfo, StreamOutlet
@@ -147,6 +148,89 @@ exp = data.ExperimentHandler(
     extraInfo = settings,
     dataFileName = str(trials_data_folder / fileName),
     )
+# BACKUP CSV SET UP
+
+backup_path = str(trials_data_folder / (fileName + "_backup.csv"))
+
+# Create file with headers once at the beginning
+with open(backup_path, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow([
+        "trial_num",
+        "phase",
+        "condition",
+        "baseline_trial_counter",
+        "oddball_trial_counter",
+        "standard_trial_counter",
+        "timestamp",
+        "timestamp_exp",
+        "timestamp_tracker",
+        "ISI_expected",
+        "ISI_duration",
+        "ISI_start_time",
+        "ISI_end_time",
+        "gaze_offset_duration",
+        "trial_pause_duration",
+        "trial_nodata_duration",
+        "stimulus_duration",
+        "stimulus_start_time",
+        "stimulus_end_time",
+        "oddball_frequency",
+        "standard_frequency"
+    ])
+
+def log_trial(
+    trial_num,
+    phase,
+    trial,
+    baseline_trial_counter=None,
+    oddball_trial_counter=None,
+    standard_trial_counter=None,
+    timestamp=None,
+    timestamp_exp=None,
+    timestamp_tracker=None,
+    ISI_expected=None,
+    ISI_duration=None,
+    ISI_start_time=None,
+    ISI_end_time=None,
+    gaze_offset_duration=None,
+    trial_pause_duration=None,
+    trial_nodata_duration=None,
+    stimulus_duration=None,
+    stimulus_start_time=None,
+    stimulus_end_time=None,
+    oddball_frequency=None,
+    standard_frequeny =None
+
+):
+    """Write one trial row to backup CSV and flush immediately."""
+    with open(backup_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            trial_num,
+            phase,
+            trial,
+            baseline_trial_counter,
+            oddball_trial_counter,
+            standard_trial_counter,
+            timestamp,
+            timestamp_exp,
+            timestamp_tracker,
+            ISI_expected,
+            ISI_duration,
+            ISI_start_time,
+            ISI_end_time,
+            gaze_offset_duration,
+            trial_pause_duration,
+            trial_nodata_duration,
+            stimulus_duration,
+            stimulus_start_time,
+            stimulus_end_time,
+            oddball_frequency,
+            standard_frequeny
+        ])
+        f.flush()
+        os.fsync(f.fileno())
 
 MONITOR_NAME = config["constants"]["monitor"]["name"]
 
@@ -653,6 +737,26 @@ try:
                 standard_trial_counter += 1
                 exp.nextEntry()
 
+                log_trial(
+                    trial_num=trial_counter,
+                    phase=phase,
+                    trial=standard,
+                    standard_trial_counter=standard_trial_counter,
+                    timestamp=timestamp,
+                    timestamp_exp=timestamp_exp,
+                    timestamp_tracker=timestamp_tracker,
+                    ISI_expected=ISI,
+                    ISI_duration=isi_duration,
+                    ISI_start_time=isi_start,
+                    ISI_end_time=isi_end,
+                    gaze_offset_duration=gaze_offset_duration,
+                    trial_pause_duration=pause_duration,
+                    trial_nodata_duration=nodata_duration,
+                    stimulus_duration=stimulus_duration,
+                    stimulus_start_time=stim_start,
+                    stimulus_end_time=stim_end
+                )
+
             # Continuing counting after 3 standard trials...
             oddball_trial_counter = standard_trial_counter
 
@@ -699,6 +803,27 @@ try:
                 oddball_trial_counter += 1
                 exp.nextEntry()
 
+                log_trial(
+                    trial_num=trial_counter,
+                    phase=phase,
+                    trial=trial,
+                    oddball_trial_counter=oddball_trial_counter,
+                    timestamp=timestamp,
+                    timestamp_exp=timestamp_exp,
+                    timestamp_tracker=timestamp_tracker,
+                    ISI_expected=ISI,
+                    ISI_duration=isi_duration,
+                    ISI_start_time=isi_start,
+                    ISI_end_time=isi_end,
+                    gaze_offset_duration=gaze_offset_duration,
+                    trial_pause_duration=pause_duration,
+                    trial_nodata_duration=nodata_duration,
+                    stimulus_duration=stimulus_duration,
+                    stimulus_start_time=stim_start,
+                    stimulus_end_time=stim_end
+                    
+                )
+
         if phase == 'baseline':
             print('START OF BASELINE PHASE')
             logging.info(' START OF BASELINE PHASE')
@@ -727,6 +852,19 @@ try:
 
             baseline_trial_counter += 1
             exp.nextEntry()
+
+            log_trial(
+                trial_num=baseline_trial_counter,
+                phase=phase,
+                trial="baseline",
+                baseline_trial_counter=baseline_trial_counter,
+                timestamp=timestamp,
+                timestamp_exp=timestamp_exp,
+                stimulus_duration=stimulus_duration,
+                gaze_offset_duration=offset_duration,
+                trial_pause_duration=pause_duration,
+                trial_nodata_duration=nodata_duration
+            )
 finally:
     # This ALWAYS runs, even if a crash occurs
     print("Saving data safely...")

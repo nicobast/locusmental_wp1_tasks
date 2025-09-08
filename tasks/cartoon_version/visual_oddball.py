@@ -13,7 +13,7 @@ from pathlib import Path
 # For logging data in a .log file:
 import logging
 from datetime import datetime
-import os
+import os, csv
 import traceback
 import json
 import sys
@@ -73,6 +73,113 @@ selected_timepoint = timepoint  # Get the first item from the list
 
 # Name for output data
 fileName =  f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(format="%Y-%m-%d-%H%M")}'
+
+import csv, os
+
+# Define backup CSV path
+backup_path = trials_data_folder / (fileName + "_backup.csv")
+
+# Create backup CSV file with header if it doesn't exist
+if not os.path.exists(backup_path):
+    with open(backup_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            # Baseline fixation
+            "baseline_trial_number",
+            "condition",
+            "timestamp_exp",
+            "expected_baseline_fixation_duration",
+            "baseline_fixation_duration",
+            "baseline_fixation_actual_duration",
+            "baseline_fixation_gaze_offset_duration",
+            "baseline_fixation_pause_duration",
+            "baseline_fixation_nodata_duration",
+            
+            # Stimulus trial info
+            "trial_number",
+            "trial_type",
+            "stimulus_start_timestamp",
+            "stimulus_end_timestamp",
+            "stimulus_duration",
+            "nodata_stimulus",
+            "trial_duration",
+            
+            # ISI
+            "ISI_start_timestamp",
+            "ISI_end_timestamp",
+            "expected_isi_duration",
+            "ISI_duration_timestamp",
+            "actual_isi_duration",
+            "gaze_offset_isi_duration",
+            "pause_isi_duration",
+            "nodata_isi_duration"
+        ])
+
+# Function to append trial or baseline data
+def log_backup_trial_odd(
+    # Baseline
+    baseline_trial_number=None,
+    condition=None,
+    timestamp_exp=None,
+    expected_baseline_fixation_duration=None,
+    baseline_fixation_duration=None,
+    baseline_fixation_actual_duration=None,
+    baseline_fixation_gaze_offset_duration=None,
+    baseline_fixation_pause_duration=None,
+    baseline_fixation_nodata_duration=None,
+    
+    # Stimulus trial
+    trial_number=None,
+    trial_type=None,
+    stimulus_start_timestamp=None,
+    stimulus_end_timestamp=None,
+    stimulus_duration=None,
+    nodata_stimulus=None,
+    trial_duration=None,
+    
+    # ISI
+    ISI_start_timestamp=None,
+    ISI_end_timestamp=None,
+    expected_isi_duration=None,
+    ISI_duration_timestamp=None,
+    actual_isi_duration=None,
+    gaze_offset_isi_duration=None,
+    pause_isi_duration=None,
+    nodata_isi_duration=None
+):
+    row = [
+        baseline_trial_number,
+        condition,
+        timestamp_exp,
+        expected_baseline_fixation_duration,
+        baseline_fixation_duration,
+        baseline_fixation_actual_duration,
+        baseline_fixation_gaze_offset_duration,
+        baseline_fixation_pause_duration,
+        baseline_fixation_nodata_duration,
+        trial_number,
+        trial_type,
+        stimulus_start_timestamp,
+        stimulus_end_timestamp,
+        stimulus_duration,
+        nodata_stimulus,
+        trial_duration,
+        ISI_start_timestamp,
+        ISI_end_timestamp,
+        expected_isi_duration,
+        ISI_duration_timestamp,
+        actual_isi_duration,
+        gaze_offset_isi_duration,
+        pause_isi_duration,
+        nodata_isi_duration
+    ]
+
+    with open(backup_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+        f.flush()
+        os.fsync(f.fileno())
+
 
 # Experiment handler
 exp = data.ExperimentHandler(
@@ -559,6 +666,18 @@ def run_experiment():
                 
                 baseline_trial_counter += 1  # Increment after each trial
                 exp.nextEntry()
+
+                log_backup_trial_odd(
+                    baseline_trial_number=baseline_trial_counter,
+                    condition='baseline_fixation',
+                    timestamp_exp=timestamp_exp,
+                    expected_baseline_fixation_duration=FIXATION_TIME,
+                    baseline_fixation_duration=baseline_fixation_duration,
+                    baseline_fixation_actual_duration=actual_fixation_duration,
+                    baseline_fixation_gaze_offset_duration=gaze_offset_fixation,
+                    baseline_fixation_pause_duration=pause_fixation,
+                    baseline_fixation_nodata_duration=nodata_fixation
+                )
                 continue
 
             # Stimulus trials (standard/oddball)
@@ -601,6 +720,26 @@ def run_experiment():
             trial_counter += 1  # Increment after each trial
             exp.nextEntry()
 
+            log_backup_trial_odd(
+                trial_number=trial_counter,
+                trial_type=trial_type,
+                timestamp_exp=timestamp_exp,
+                stimulus_start_timestamp=stimulus_start,
+                stimulus_end_timestamp=stimulus_end,
+                stimulus_duration=stimulus_duration,
+                nodata_stimulus=nodata_stimulus,
+                trial_duration=trial_duration,
+                ISI_start_timestamp=ISI_start,
+                ISI_end_timestamp=ISI_end,
+                expected_isi_duration=ISI_DURATION,
+                ISI_duration_timestamp=ISI_duration_timestamp,
+                actual_isi_duration=actual_isi_duration,
+                gaze_offset_isi_duration=gaze_offset_isi_duration,
+                pause_isi_duration=pause_isi_duration,
+                nodata_isi_duration=nodata_isi_duration
+            )
+
+
             print(f"Trial duration timestamp: {core.getTime() - trial_start:.3f} seconds")
 
         print("\nAdding final fixation baseline...")
@@ -637,6 +776,18 @@ def run_experiment():
         logging.info(f"Final Baseline Fixation completed")
 
         exp.nextEntry()
+
+        log_backup_trial_odd(
+            baseline_trial_number=baseline_trial_counter,
+            condition='end_baseline_fixation',
+            timestamp_exp=timestamp_exp,
+            expected_baseline_fixation_duration=FIXATION_TIME,
+            baseline_fixation_duration=baseline_fixation_duration,
+            baseline_fixation_actual_duration=actual_fixation_duration,
+            baseline_fixation_gaze_offset_duration=gaze_offset_fixation,
+            baseline_fixation_pause_duration=pause_fixation,
+            baseline_fixation_nodata_duration=nodata_fixation
+        )
   
         print("\nExperiment Completed")
         end_time = core.getTime()

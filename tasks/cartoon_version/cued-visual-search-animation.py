@@ -11,7 +11,7 @@ from pathlib import Path
 # For logging data in a .log file:
 import logging
 from datetime import datetime
-import os
+import os, csv
 from datetime import datetime
 import json
 import sys
@@ -70,6 +70,151 @@ fileName = f'{task_name}_{participant_id}_{selected_timepoint}_{data.getDateStr(
 num_trials = 30
 #num_trials = 5 # Set to 5 for testing, change to 30 for full experiment
 # Initialize a trial counter 
+
+import csv, os
+
+# Define backup CSV path
+backup_path = trials_data_folder / (fileName + "_backup.csv")
+
+# Create backup CSV file with header if it doesn't exist
+if not os.path.exists(backup_path):
+    with open(backup_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            # General trial info
+            "trial_number",
+            "timestamp_exp",
+            "trial_start_timestamp",
+            "trial_end_timestamp",
+            
+            # Colors & target
+            "base_color",
+            "target_color",
+            "target_position_index",
+            "target_position",
+            
+            # ISI info
+            "ISI_start_timestamp",
+            "ISI_end_timestamp",
+            "ISI_expected",
+            "ISI_duration_timestamp",
+            "ISI_actual_duration",
+            "ISI_Gaze_Offset_Duration",
+            "ISI_nodata_Duration",
+            "ISI_Pause_Duration",
+            
+            # Beep info
+            "auditory_cue",
+            "beep_phase_start_timestamp",
+            "beep_phase_end_timestamp",
+            "beep_start_timestamp",
+            "beep_end_timestamp",
+            "actual_beep_duration",
+            "expected_beep_duration",
+            "nodata_beep_interval",
+            "actual_beep_phase_duration",
+            "delay_beep_phase",
+            
+            # Visual search
+            "actual_visual_search_duration",
+            "nodata_visual_search",
+            
+            # Trial duration
+            "trial_duration",
+            
+            # Baseline fixation
+            "baseline_fixation_start_timestamp",
+            "baseline_fixation_end_timestamp",
+            "baseline_fixation_duration",
+            "baseline_fixation_actual_isi_duration",
+            "baseline_fixation_gaze_offset_duration",
+            "baseline_fixation_pause_duration",
+            "baseline_fixation_nodata_duration"
+        ])
+
+# Function to append trial or baseline data
+def log_backup_trial(
+    trial_number=None,
+    timestamp_exp=None,
+    trial_start_timestamp=None,
+    trial_end_timestamp=None,
+    base_color=None,
+    target_color=None,
+    target_position_index=None,
+    target_position=None,
+    ISI_start_timestamp=None,
+    ISI_end_timestamp=None,
+    ISI_expected=None,
+    ISI_duration_timestamp=None,
+    ISI_actual_duration=None,
+    ISI_Gaze_Offset_Duration=None,
+    ISI_nodata_Duration=None,
+    ISI_Pause_Duration=None,
+    auditory_cue=None,
+    beep_phase_start_timestamp=None,
+    beep_phase_end_timestamp=None,
+    beep_start_timestamp=None,
+    beep_end_timestamp=None,
+    actual_beep_duration=None,
+    expected_beep_duration=None,
+    nodata_beep_interval=None,
+    actual_beep_phase_duration=None,
+    delay_beep_phase=None,
+    actual_visual_search_duration=None,
+    nodata_visual_search=None,
+    trial_duration=None,
+    baseline_fixation_start_timestamp=None,
+    baseline_fixation_end_timestamp=None,
+    baseline_fixation_duration=None,
+    baseline_fixation_actual_isi_duration=None,
+    baseline_fixation_gaze_offset_duration=None,
+    baseline_fixation_pause_duration=None,
+    baseline_fixation_nodata_duration=None
+):
+    row = [
+        trial_number,
+        timestamp_exp,
+        trial_start_timestamp,
+        trial_end_timestamp,
+        base_color,
+        target_color,
+        target_position_index,
+        target_position,
+        ISI_start_timestamp,
+        ISI_end_timestamp,
+        ISI_expected,
+        ISI_duration_timestamp,
+        ISI_actual_duration,
+        ISI_Gaze_Offset_Duration,
+        ISI_nodata_Duration,
+        ISI_Pause_Duration,
+        auditory_cue,
+        beep_phase_start_timestamp,
+        beep_phase_end_timestamp,
+        beep_start_timestamp,
+        beep_end_timestamp,
+        actual_beep_duration,
+        expected_beep_duration,
+        nodata_beep_interval,
+        actual_beep_phase_duration,
+        delay_beep_phase,
+        actual_visual_search_duration,
+        nodata_visual_search,
+        trial_duration,
+        baseline_fixation_start_timestamp,
+        baseline_fixation_end_timestamp,
+        baseline_fixation_duration,
+        baseline_fixation_actual_isi_duration,
+        baseline_fixation_gaze_offset_duration,
+        baseline_fixation_pause_duration,
+        baseline_fixation_nodata_duration
+    ]
+
+    with open(backup_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+        f.flush()
+        os.fsync(f.fileno())
 
 # Experiment handler saves experiment data automatically.
 exp = data.ExperimentHandler(
@@ -444,6 +589,17 @@ def show_baseline_fixation():
     exp.addData('baseline_fixation_nodata_duration', nodata_fixation)
 
     exp.nextEntry()
+    
+    log_backup_trial(
+        baseline_fixation_start_timestamp=fixation_start,
+        baseline_fixation_end_timestamp=fixation_end,
+        baseline_fixation_duration=fixation_duration,
+        baseline_fixation_actual_isi_duration=actual_fixation_duration,
+        baseline_fixation_gaze_offset_duration=gaze_offset_fixation,
+        baseline_fixation_pause_duration=pause_fixation,
+        baseline_fixation_nodata_duration=nodata_fixation,
+        timestamp_exp=timestamp_exp
+    )
 
 def run_experiment():
 
@@ -659,6 +815,38 @@ def run_experiment():
             trials.addData('trial_duration', round(trial_duration,3)) # from timestamp
             
             exp.nextEntry()
+
+            log_backup_trial(
+                trial_number=trial + 1,
+                timestamp_exp=timestamp_exp,
+                trial_start_timestamp=trial_start_time,
+                trial_end_timestamp=trial_end_time,
+                base_color=base_color_name,
+                target_color=odd_color_name,
+                target_position_index=odd_index,
+                target_position=direction,
+                ISI_start_timestamp=isi_start_time,
+                ISI_end_timestamp=isi_end_time,
+                ISI_expected=INTER_TRIAL_INTERVAL,
+                ISI_duration_timestamp=isi_actual_duration,
+                ISI_actual_duration=actual_oddball_duration,
+                ISI_Gaze_Offset_Duration=gaze_offset_duration,
+                ISI_nodata_Duration=nodata_duration,
+                ISI_Pause_Duration=pause_duration,
+                auditory_cue=auditory_cue,
+                beep_phase_start_timestamp=beep_phase_start_time,
+                beep_phase_end_timestamp=beep_phase_end_timestamp,
+                beep_start_timestamp=beep_start_time,
+                beep_end_timestamp=beep_end_time,
+                actual_beep_duration=beep_duration,
+                expected_beep_duration=expected_beep_duration,
+                nodata_beep_interval=nodata_beep_interval,
+                actual_beep_phase_duration=beep_phase_duration,
+                delay_beep_phase=delay_duration,
+                actual_visual_search_duration=actual_stimulus_duration,
+                nodata_visual_search=nodata_visual_search,
+                trial_duration=trial_duration
+            )
 
         print("\nExperiment Completed")
         end_time = core.getTime()

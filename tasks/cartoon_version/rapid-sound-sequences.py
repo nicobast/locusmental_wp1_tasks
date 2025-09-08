@@ -18,6 +18,7 @@ import os
 import traceback
 import json
 import sys
+import csv
 #send trigger via LSL
 from pylsl import StreamInfo, StreamOutlet
 
@@ -82,6 +83,150 @@ exp = data.ExperimentHandler(
     dataFileName = str(trials_data_folder / fileName),
     )
 str(trials_data_folder / fileName)
+
+# === Setup backup CSV ===
+backup_path = str(trials_data_folder / (fileName + "_backup.csv"))
+
+# Write header once if file is new
+if not os.path.exists(backup_path):
+    with open(backup_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "Phase",
+            "Trial_Number",
+            "Condition",
+            "timestamp_exp",
+            "trial_start_time",
+            "trial_end_time",
+            "start_timestamp_0",
+            "transition_timestamp_1",
+            "end_timestamp_2",
+            "expected_stimulus_duration",
+            "Stimulus_Duration",
+            "nodata_stimulus",
+            "pause_stimulus",
+            "gaze_offset_stimuli",
+            "Gaze_Offset_Cartoon_Duration",
+            "nodata_cartoon_Duration",
+            "Pause_cartoon_Duration",
+            "Trial_Duration",
+            "cartoon_start",
+            "cartoon_actual_duration",
+            "num_repetitions",
+            "REG1_Frequency",
+            "rep_1","rep_2","rep_3","rep_4","rep_5","rep_6",
+            "rep_7","rep_8","rep_9","rep_10","rep_11","rep_12",
+            # --- Baseline fields ---
+            "baseline_fixation_start_timestamp",
+            "baseline_fixation_end_timestamp",
+            "baseline_fixation_duration",
+            "baseline_fixation_actual_isi_duration",
+            "baseline_fixation_gaze_offset_duration",
+            "baseline_fixation_pause_duration",
+            "baseline_fixation_nodata_duration"
+        ])
+
+
+# === Function to log trial to backup CSV ===
+def log_trial_backup(
+    trial_number,
+    condition,
+    timestamp_exp,
+    trial_start_time,
+    trial_end_time,
+    start_timestamp_0,
+    transition_timestamp_1,
+    end_timestamp_2,
+    expected_stimulus_duration,
+    stimulus_duration,
+    nodata_stimulus,
+    pause_stimulus,
+    gaze_offset_stimuli,
+    gaze_offset_cartoon_duration,
+    nodata_cartoon_duration,
+    pause_cartoon_duration,
+    trial_duration,
+    cartoon_start,
+    cartoon_actual_duration,
+    num_repetitions,
+    reg1_frequency=None,
+    sequence_strings=None
+):
+    row = [
+        "trial",
+        trial_number,
+        condition,
+        timestamp_exp,
+        trial_start_time,
+        trial_end_time,
+        start_timestamp_0,
+        transition_timestamp_1,
+        end_timestamp_2,
+        expected_stimulus_duration,
+        stimulus_duration,
+        nodata_stimulus,
+        pause_stimulus,
+        gaze_offset_stimuli,
+        gaze_offset_cartoon_duration,
+        nodata_cartoon_duration,
+        pause_cartoon_duration,
+        trial_duration,
+        cartoon_start,
+        cartoon_actual_duration,
+        num_repetitions,
+        reg1_frequency if reg1_frequency else "NA"
+    ]
+
+    # Fill up to 12 sequence repetitions
+    if sequence_strings:
+        row.extend(sequence_strings[:12])
+        row.extend(["NA"] * (12 - len(sequence_strings)))
+    else:
+        row.extend(["NA"] * 12)
+
+    # Baseline columns (empty for trials)
+    row.extend(["NA"] * 7)
+
+    with open(backup_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+        f.flush()
+        os.fsync(f.fileno())
+
+def log_baseline_backup(
+    timestamp_exp,
+    fixation_start,
+    fixation_end,
+    fixation_duration,
+    actual_fixation_duration,
+    gaze_offset_fixation,
+    pause_fixation,
+    nodata_fixation
+):
+    row = [
+        "baseline",   # Phase
+        0,            # Trial_Number (0 = before trials)
+        "baseline",   # Condition
+        timestamp_exp,
+        fixation_start,
+        fixation_end,
+        "NA", "NA", "NA", "NA", "NA", "NA", "NA", "NA", "NA",
+        "NA", "NA", "NA", "NA", "NA", "NA", "NA", "NA",
+        "NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",
+        fixation_start,
+        fixation_end,
+        fixation_duration,
+        actual_fixation_duration,
+        gaze_offset_fixation,
+        pause_fixation,
+        nodata_fixation
+    ]
+
+    with open(backup_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+        f.flush()
+        os.fsync(f.fileno())
 
 # Define TrialHandler for managing trial-level data
 trials = data.TrialHandler(
@@ -871,6 +1016,17 @@ def show_baseline_fixation():
     exp.addData('baseline_fixation_nodata_duration', nodata_fixation)
 
     exp.nextEntry()  # Move to next row in data file
+    # Also log to backup file
+    log_baseline_backup(
+        timestamp_exp=timestamp_exp,
+        fixation_start=fixation_start,
+        fixation_end=fixation_end,
+        fixation_duration=fixation_duration,
+        actual_fixation_duration=actual_fixation_duration,
+        gaze_offset_fixation=gaze_offset_fixation,
+        pause_fixation=pause_fixation,
+        nodata_fixation=nodata_fixation
+    )
 
 # A trial contains fixation cross, followed by a sequence of tones
 def run_experiment():
@@ -1094,6 +1250,33 @@ def run_experiment():
 
             trial_number += 1
             exp.nextEntry()
+
+            # Backup logging (immediate save)
+            log_trial_backup(
+                trial_number=trial_number,
+                condition=condition,
+                timestamp_exp=timestamp_exp,
+                trial_start_time=trial_start_time,
+                trial_end_time=trial_end_time,
+                start_timestamp_0=start_timestamp_0,
+                transition_timestamp_1=transition_timestamp_1,
+                end_timestamp_2=end_timestamp_2,
+                expected_stimulus_duration=expected_duration,
+                stimulus_duration=stimulus_duration,
+                nodata_stimulus=round(nodata_stimulus, 3),
+                pause_stimulus=round(pause_duration, 3),
+                gaze_offset_stimuli=round(gaze_offset_stimuli, 3),
+                gaze_offset_cartoon_duration=gaze_offset_cartoon_duration,
+                nodata_cartoon_duration=nodata_cartoon_duration,
+                pause_cartoon_duration=pause_cartoon_duration,
+                trial_duration=trial_duration,
+                cartoon_start=cartoon_start_time,
+                cartoon_actual_duration=actual_cartoon_duration,
+                num_repetitions=num_repetitions,
+                reg1_frequency=round(reg1_tone, 1) if condition == "RAND20-REG1" else None,
+                sequence_strings=sequence_strings
+            )
+
 
         #send LSL trigger
         end_time = core.getTime()
