@@ -636,11 +636,11 @@ MIN_FREQ = 200
 MAX_FREQ = 2000
 INTER_TRIAL_INTERVAL = 2
 # Number of trials
-#CONTROL_TRIALS = 5
-#TRANSITION_TRIALS = 10
-#TOTAL_TRIALS = 8 # Number of trials (not smaller than 8, default: 40)
-CONTROL_TRIALS = 1 #repetitions of REG10 and RAND20
-TRANSITION_TRIALS = 1 #repetitions of REG10-RAND20, REG00-REG1, RAND20-REG10
+CONTROL_TRIALS = 5
+TRANSITION_TRIALS = 10
+TOTAL_TRIALS = CONTROL_TRIALS * 2 + TRANSITION_TRIALS * 2 # Number of trials (not smaller than 8, default: 40)
+#CONTROL_TRIALS =  #repetitions of REG10 and RAND20
+#TRANSITION_TRIALS = 1 #repetitions of REG10-RAND20, REG00-REG1, RAND20-REG10
 
 animation_files = [f"media/cartoons/{i}.mp4" for i in range(1, 40)]
 
