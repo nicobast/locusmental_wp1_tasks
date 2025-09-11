@@ -45,7 +45,6 @@ lapply(pkgs, function(pkg) {
 })
 ```
 
-
 ```{r load_data, include=FALSE, warning=FALSE}
 # Define paths (adjust to your project)
 
@@ -53,13 +52,13 @@ lapply(pkgs, function(pkg) {
 home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 
-
 # Load processed files
 list.files(data_path)
 df_et <- readRDS(paste0(home_path, data_path, "eyetracking_ao.rds"))
 df_trial <- readRDS(paste0(home_path, data_path, "trialdata_ao.rds"))
 
 ```
+
 # Trial-Level Metrics
 ## Trial Duration, Stimulus Duration and ISI Duration
 
@@ -792,7 +791,6 @@ cat(
 # Plot emmeans with comparisons
 plot(emm, comparisons = TRUE)
 ```
-
 
 ```{r , echo=FALSE, fig.width=10, fig.height=8}
 p1 <-ggplot(df_aoi_clean, aes(x = ts_trial, y = RPD_short, fill= trial, color = trial)) +

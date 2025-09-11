@@ -14,7 +14,7 @@
 ################################################################################
 #
 # Outline:
-# 1) Loadind Data
+# 1) Loading Data
 #   1.1) Load Eye Tracking Data
 #   1.2) Load Trial Data
 #   1.3) File Matching Check
@@ -59,10 +59,21 @@ lapply(pkgs, function(pkg) {
   }
 })
 
+# install pupil preprocessing package from github
+remotes::install_github("nicobast/PupilPreprocess")
+require(PupilPreprocess)
+#detach("package:PupilPreprocess", unload=T)
+
+#instal rhdf5 from Bioconductor repository as not available for R4.5 form CRAN
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("rhdf5")
+
 
 # PATHS
 
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 project_path <- "LOCUS_MENTAL/6_Versuchsdaten"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 data_path_et <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/eyetracking"
@@ -210,6 +221,12 @@ cat(unmatched_et, "do not have a matching trial file", sep = "\n")
 #reduce data files for participant with ET and task data
 list_et_data<-list_et_data[!(names(list_et_data) %in% paste0(unmatched_et,'.hdf5'))]
 list_trial_data<-list_trial_data[!(names(list_trial_data) %in% paste0(unmatched_task,'.csv'))]
+list_et_data<-list_et_data[(names(list_et_data) %in% names(list_trial_data))]
+
+## LM_013 two et data sets --> remove smaller one
+sapply(list_et_data,nrow)
+excluded_low_data_sets<-which(sapply(list_et_data,nrow)<10000)
+list_et_data<-list_et_data[-excluded_low_data_sets]
 
 # 2) Functions -----
 
@@ -217,7 +234,6 @@ list_trial_data<-list_trial_data[!(names(list_trial_data) %in% paste0(unmatched_
 
 # This function merges only the eye-tracking data during the stimulus sequences,
 # based on explicitly defined start and end timestamps for each stimulus segment
-
 fun_merge_all_ids_stimulus <- function(et_data, trial_data) {
   # Time variables: eye tracking (logged_time) + trial data (timestamp_exp)
   start_ts <- trial_data$start_timestamp_0 # trial start timestamp
@@ -577,9 +593,14 @@ list_split_trial <- pblapply(list_split_trial, function(x) {
   return(x)
 })
 
-# Apply custom preprocessing for pd
+# Apply  preprocessing for pd -
 list_split_trial <- pblapply(
-  list_split_trial, func_pd_preprocess)
+  list_split_trial, pupil_preprocessing,
+  provide_variable_names = T,
+  left_diameter_name = 'left_pupil_measure1',
+  right_diameter_name = 'right_pupil_measure1',
+  timestamp_name = 'ts_trial',
+  sampling_rate = 60)
 
 # Merge all trial-level data into one dataframe
 df <- dplyr::bind_rows(list_split_trial)
@@ -700,6 +721,27 @@ df <- df %>%
 df_trial <- df_trial %>%
   left_join(pd_change, by = c("id", "Condition", "Trial.Number"))
 
+#initial plotting
+df$rpd<-df$pd-df$baseline_mean
+g1<-ggplot(df,aes(x=ts_trial,y=rpd,group=condition_type,color=condition_type))+geom_smooth()+
+  geom_vline(xintercept=5.5,linetype=2)+
+  xlim(c(2.5,8))+theme_minimal()+xlab('trial duration (s)')+ylab('pupil size change (mm)')+
+  labs(title='detection of transition conditions')+theme(legend.position = "bottom")
+
+g2<-ggplot(df[df$Condition %in% c('RAND20','REG10'),],aes(x=ts_trial,y=rpd,group=Condition,color=Condition))+geom_smooth()+
+  geom_vline(xintercept=5.5,linetype=2)+
+  xlim(c(2.5,8))+theme_minimal()+xlab('trial duration (s)')+ylab('pupil size change (mm)')+
+  labs(title='effect of initial regularity')+theme(legend.position = "bottom")
+
+g3<-ggplot(df[df$Condition %in% c('REG10-RAND20','RAND20-REG10'),],aes(x=ts_trial,y=rpd,group=Condition,color=Condition))+geom_smooth()+
+  geom_vline(xintercept=5.5,linetype=2)+
+  xlim(c(2.5,8))+theme_minimal()+xlab('trial duration (s)')+ylab('pupil size change (mm)')+
+  labs(title='transition from regularity to irregularity')+theme(legend.position = "bottom")
+
+gridExtra::grid.arrange(g1,g2,g3,nrow=1)
+  
+
+with(df,table(condition_type,Condition))
 
 # 5) Data Saving -----
 
