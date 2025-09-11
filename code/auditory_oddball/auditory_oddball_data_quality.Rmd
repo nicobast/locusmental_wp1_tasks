@@ -49,7 +49,8 @@ lapply(pkgs, function(pkg) {
 ```{r load_data, include=FALSE, warning=FALSE}
 # Define paths (adjust to your project)
 
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 
 
@@ -107,7 +108,7 @@ p1 /p2 /p3
 ```
 
 
-```{r }
+```{r filter_trials}
 # Filter trials longer than 2.5 seconds
 long_trials <- df_trial %>%
   filter(trial_duration > 2.5)
@@ -160,7 +161,10 @@ high_na_trials <- trial_na_summary %>%
 print(high_na_trials)
 ```
 
+
 ```{r pupil_quality_plot, echo=TRUE, fig.width=12, fig.height=6}
+na_threshold <- 0.5 
+
 if("pd" %in% names(df_et)) {
   # Plot pupil size over time with missing data indicators
   participant_data <- df_et %>% 
@@ -201,7 +205,7 @@ if("pd" %in% names(df_et)) {
 }
 ```
 
-```{r  echo=FALSE}
+```{r exclude_NA_trials,  echo=FALSE}
 # Exclude trials with high NAs
 df<- df_et %>%
   anti_join(high_na_trials, by = c("id", "trial_number"))
@@ -595,7 +599,7 @@ if(length(missing_gaze_cols) == 0 && exists("df_valid")) {
 }
 ```
 
-```{r}
+```{r aoi_table}
 # Points outside the AOI circle
 outside_circle <- df_aoi %>%
   filter(gaze_distance > aoi_threshold)
@@ -791,11 +795,11 @@ plot(emm, comparisons = TRUE)
 
 
 ```{r , echo=FALSE, fig.width=10, fig.height=8}
-p1 <-ggplot(df_aoi_clean, aes(x = ts_trial, y = baseline_corr_pd, fill= trial, color = trial)) +
+p1 <-ggplot(df_aoi_clean, aes(x = ts_trial, y = RPD_short, fill= trial, color = trial)) +
   geom_smooth() +
   xlim(c(0,2))+
   labs(
-    title = " Baseline Corrected PD Oddball vs. Standard, only AOI",
+    title = " baseline corrected PD Oddball vs. Standard, only AOI",
     x = "Time(s)",
     y = "Corrected PD"
   ) +
@@ -864,5 +868,15 @@ ggplot(pd_long, aes(x = measure, y = value, fill = measure)) +
   labs(x = "Pupil Measure", y = "Mean Pupil Dilation") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## pupillary response in uncleaned data
+
+```{r pupillary response in preprocessed data}
+
+df_et$rpd<-df_et$pd-df_et$pd_low
+ggplot(df_et,aes(x=ts_trial,y=rpd,group=trial,color=trial))+geom_smooth()+theme_minimal()+
+  labs(x = "trial duration (s)", y = "pupil size change (mm)")+theme(legend.position = "bottom")
+
 ```
 
