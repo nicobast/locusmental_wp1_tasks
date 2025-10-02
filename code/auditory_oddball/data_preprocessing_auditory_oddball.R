@@ -2,7 +2,7 @@
 # 
 # Auditory Oddball Preprocessing
 # Author: Iskra Todorova
-# Last Update: 2025-08-14
+# Last Update: 2025-09-11
 # R Version: 4.5.1
 #
 ################################################################################
@@ -14,7 +14,7 @@
 ################################################################################
 #
 # Outline:
-# 1) Loadind Data
+# 1) Loading Data
 #   1.1) Load Eye Tracking Data
 #   1.2) Load Trial Data
 #   1.3) File Matching Check
@@ -39,13 +39,14 @@ sessionInfo()
 
 # REQUIRED PACKAGES
 
-pkgs <- c("rhdf5",
+pkgs <- c("rhdf5", #note: rhdf5 not available for R 4.5
          "data.table", # efficient due to parallelization
          "zoo", # used for na.approx
          "pbapply", # progress bar for apply functions
          "ggplot2", # creating graphs
          "dplyr",# for %>% operator
-         "DescTools")
+         "DescTools",
+         "remote") #for installing pupil preprocessing package from github
 
 # check if required packages are installed
 installed_packages = pkgs %in% rownames(installed.packages())
@@ -61,9 +62,20 @@ lapply(pkgs, function(pkg) {
   }
 })
 
+# install pupil preprocessing package from github
+remotes::install_github("nicobast/PupilPreprocess")
+require(PupilPreprocess)
+#detach("package:PupilPreprocess", unload=T)
+
+#instal rhdf5 from Bioconductor repository as not available for R4.5 form CRAN
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("rhdf5")
+
 # PATHS
 
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 project_path <- "LOCUS_MENTAL/6_Versuchsdaten"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 data_path_et <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/eyetracking"
@@ -85,7 +97,7 @@ data_files_et <- data_files_et[grepl(".hdf5", data_files_et)]
 list_et_data <- list(0)
 for (i in 1:length(data_files_et)) {
   print(paste0("now reading: ", data_files_et[i]))
-  list_et_data[[i]] <- h5read(
+  list_et_data[[i]] <- rhdf5::h5read(
     file = data_files_et[i],
     name = "data_collection/events/eyetracker/BinocularEyeSampleEvent")
   #print(paste0("completed reading: ", data_files_et[i]))
@@ -135,7 +147,6 @@ list_et_data <- lapply(
   list_et_data, function(x) {
     x[!(names(x) %in% constant_variables)]})
 
-
 #   1.2) Load Trial Data ----
 
 # Get trial data and store in a list of df (one per subject)
@@ -180,7 +191,6 @@ list_trial_data <- Map(function(df, id) {
   return(df)
 }, list_trial_data, id_names)
 
-
 #   1.3) File Matching Check ----
 
 # Check for .csv- + .hdf5- file matching (path-independent):
@@ -197,6 +207,7 @@ cat(unmatched_et, "do not have a matching trial file", sep = "\n")
 list_et_data<-list_et_data[!(names(list_et_data) %in% paste0(unmatched_et,'.hdf5'))]
 list_trial_data<-list_trial_data[!(names(list_trial_data) %in% paste0(unmatched_task,'.csv'))]
 
+list_et_data<-list_et_data[(names(list_et_data) %in% names(list_trial_data))]
 
 # 2) Functions -----
     
@@ -241,166 +252,165 @@ fun_merge_all_ids <- function(et_data, trial_data) {
     df_one_id <- dplyr::bind_rows(df_one_id) # faster than rbind.fill
 }
 
-
 #   2.2) Blink function ---- 
 
-# Blinks are defined as consecutive missing et data for 75–250 ms
-# Need adjustments for Tobii Spark, sampling rate 60
-# Sampling Interval = 1000/60 = 16.67
-# lower threshold = 75/16.67 ~ 4.5 samples
-# Upper threshold = 250 / 16.67 ~ 15 samples
-# 8 samples * 16.67 ms per sample ≈ 133 ms
-
-fun_blink_cor <- function(
-  signal, lower_threshold = 5, upper_threshold = 15,
-  samples_before = 8, samples_after = 8 ) { # should be changes as well?
-  # Replace Na with 999
-  findna <- ifelse(is.na(signal), 999, signal)
-  repets <- rle(findna) # gives number of repetitions
-  # Repeat number of repetition as often the value is
-  repets <- rep(repets[["lengths"]], times = repets[["lengths"]])
-  # 75 ms / 3,33 sampling interval = 23 samples (rows of et data)
-  # 250 ms / 3,33 ms sampling interval = 75 samples (rows of eye tracking data)
-  # If value is consecutively repeted >= 23 and <= 75, coding is "1", else "0"
-  repets <- ifelse(repets >= lower_threshold & repets <= upper_threshold, 1, 0)
-  # Repeated values other than Na are set to "0"
-  repets[findna != 999 & repets == 1] <- 0
-  # Differences between consecutive values indicate blink artefact bounderies
-  changes <- c(diff(repets), 0)
-  change_start <- which(changes == 1)
-  # Blink sequence includes 8 samples before after blink, repectively.
-  start_seq <- unlist(lapply(change_start, function(x) {
-    seq(max(x - (samples_before - 1), 1), x)
-    }
-    ))
-  repets[start_seq] <- 1
-  changes_end <- which(changes == -1) + 1
-  end_seq <- unlist(lapply(changes_end, function(x) {
-    seq(x, min(x + (samples_before - 1), length(repets)))
-    }
-    ))
-  repets[end_seq] <- 1
-  # Data in blink interval is replaced with Na.
-  signal[repets == 1] <- NA
-  return(signal)
-}
-
-
-#   2.3) Pupil Dilation Preprocessing Function ----
-func_pd_preprocess <- function(x) {
-  left_diameter <- x$left_pupil_measure1
-  right_diameter <- x$right_pupil_measure1
-  remote_time <- x$ts_trial * 1000 # *1000 to convert s -> ms format
-  # Pupil diameter outliers (< 2 mm or > 8 mm) are replaced with Na.
-  pl <- ifelse((left_diameter < 2 | left_diameter > 8), NA, left_diameter)
-  pr <- ifelse((right_diameter < 2 | right_diameter > 8), NA, right_diameter)
-  # Dilation speed outliers: > constant * median change values are excluded
-  constant <- 3
-  # speed defined as movement / time
-  # Dilatation speed for left eye
-  pl_speed1 <- diff(pl) / diff(remote_time) # compared to previous et event
-  pl_speed2 <- diff(rev(pl)) / diff(rev(remote_time)) # compared to next event
-  pl_speed1 <- c(NA, pl_speed1)
-  pl_speed2 <- c(rev(pl_speed2), NA)
-  pl_speed <- pmax(pl_speed1, pl_speed2, na.rm = TRUE)
-  rm(pl_speed1, pl_speed2)
-  # Dilatation speed for right eye
-  pr_speed1 <- diff(pr) / diff(remote_time) # compared to previous et event
-  pr_speed2 <- diff(rev(pr)) / diff(rev(remote_time)) # compared to next event
-  pr_speed1 <- c(NA, pr_speed1)
-  pr_speed2 <- c(rev(pr_speed2), NA)
-  pr_speed <- pmax(pr_speed1, pr_speed2, na.rm = TRUE)
-  rm(pr_speed1, pr_speed2)
-  # Threshold (in mm/ms): dilation speed median + 3 * median absolute deviation
-  # Left eye
-  pl_speed_med <- median(pl_speed, na.rm = TRUE)
-  pl_mad <- median(abs(pl_speed - pl_speed_med), na.rm = TRUE)
-  pl_treshold_speed <- pl_speed_med + constant * pl_mad
-  # Right eye
-  pr_speed_med <- median(pr_speed, na.rm = TRUE)
-  pr_mad <- median(abs(pr_speed - pr_speed_med), na.rm = TRUE)
-  pr_treshold_speed <- pr_speed_med + constant * pr_mad
-  # Replace pupil data higher than threshold with Na
-  pl <- ifelse(abs(pl_speed) > pl_treshold_speed, NA, pl)
-  pr <- ifelse(abs(pr_speed) > pr_treshold_speed, NA, pr)
-  # Calling function for blink correction
-  pl <- fun_blink_cor(pl)
-  pr <- fun_blink_cor(pr)
-  # Two pass approach. 1st pass: Exclude deviation from trend
-  # line derived from all samples. 2nd pass: Exclude deviation from trend
-  # line derived from samples passing. Reintroduction of sample that might
-  # have been falsely excluded due to outliers estimate smooth size based
-  # on sampling rate
-  smooth_length <- 150 # in ms
-  # take sampling rate into account (300 vs. 120):
-  smooth_size <- round(
-    smooth_length / median(diff(remote_time), # remote_time is ts_trial in ms
-    na.rm = TRUE))
-  is_even <- function(x) {
-    x %% 2 == 0
-    }
-  smooth_size <- ifelse(
-    is_even(smooth_size) == TRUE,
-    smooth_size + 1, smooth_size) # odd values for runmed()-function
-  # for left and right eye:
-  # giving the smooth function Na would raise an error
-  pl_smooth <- na.approx(pl, na.rm = FALSE, rule = 2)
-  # Robust Scatter Plot Smoothing
-  if (sum(!is.na(pl_smooth)) != 0) {
-    pl_smooth <- runmed(pl_smooth, k = smooth_size)
-    }
-  pl_mad <- median(abs(pl - pl_smooth), na.rm = TRUE)
-  # Giving the smooth function Na would raise an error
-  pr_smooth <- na.approx(pr, na.rm = FALSE, rule = 2)
-  # Robust Scatter Plot Smoothing
-  if (sum(!is.na(pr_smooth)) != 0) {
-    pr_smooth <- runmed(pr_smooth, k = smooth_size)
-    }
-  pr_mad <- median(abs(pr - pr_smooth), na.rm = TRUE)
-  # correct pupil dilation for size outliers - 1st pass
-  pl_pass1 <- ifelse(
-    (pl > pl_smooth + constant * pl_mad) | (pl < pl_smooth - constant * pl_mad),
-    NA, pl)
-  pr_pass1 <- ifelse(
-    (pr > pr_smooth + constant * pr_mad) | (pr < pr_smooth - constant * pr_mad),
-    NA, pr)
-  # for left and right eye:
-  # giving the smooth function Na would raise an error
-  pl_smooth <- na.approx(pl_pass1, na.rm = FALSE, rule = 2)
-  # Robust Scatter Plot Smoothing
-  if (sum(!is.na(pl_smooth)) != 0) {
-    pl_smooth <- runmed(pl_smooth, k = smooth_size)
-    }
-  pl_mad <- median(abs(pl - pl_smooth), na.rm = TRUE)
-  # Giving the smooth function Na would raise an error
-  pr_smooth <- na.approx(pr_pass1, na.rm = FALSE, rule = 2)
-  # Robust Scatter Plot Smoothing
-  if (sum(!is.na(pr_smooth)) != 0) {
-    pr_smooth <- runmed(pr_smooth, k = smooth_size)
-    }
-  pr_mad <- median(abs(pr - pr_smooth), na.rm = TRUE)
-  # correct pupil dilation for size outliers - 2nd pass
-  pl_pass2 <- ifelse(
-    (pl > pl_smooth + constant * pl_mad) | (pl < pl_smooth - constant * pl_mad),
-    NA, pl)
-  pr_pass2 <- ifelse(
-    (pr > pr_smooth + constant * pr_mad) | (pr < pr_smooth - constant * pr_mad),
-    NA, pr)
-  pl <- pl_pass2
-  pr <- pr_pass2
-  # Fill Na with offset value
-  pd_offset <- pl - pr
-  pd_offset <- na.approx(pd_offset, rule = 2)
-  pl <- ifelse(is.na(pl) == FALSE, pl, pr + pd_offset)
-  pr <- ifelse(is.na(pr) == FALSE, pr, pl - pd_offset)
-  # Interpolation of missing values < 300 ms
-  pl <- na.approx(pl, na.rm = FALSE, maxgap = 90, rule = 2)
-  pr <- na.approx(pr, na.rm = FALSE, maxgap = 90, rule = 2)
-  # mean pupil dilation across both eyes
-  pd <- (pl + pr) / 2
-  x[, "pd"] <- pd
-  return(x)
-}
+# # Blinks are defined as consecutive missing et data for 75–250 ms
+# # Need adjustments for Tobii Spark, sampling rate 60
+# # Sampling Interval = 1000/60 = 16.67
+# # lower threshold = 75/16.67 ~ 4.5 samples
+# # Upper threshold = 250 / 16.67 ~ 15 samples
+# # 8 samples * 16.67 ms per sample ≈ 133 ms
+# 
+# fun_blink_cor <- function(
+#   signal, lower_threshold = 5, upper_threshold = 15,
+#   samples_before = 8, samples_after = 8 ) { # should be changes as well?
+#   # Replace Na with 999
+#   findna <- ifelse(is.na(signal), 999, signal)
+#   repets <- rle(findna) # gives number of repetitions
+#   # Repeat number of repetition as often the value is
+#   repets <- rep(repets[["lengths"]], times = repets[["lengths"]])
+#   # 75 ms / 3,33 sampling interval = 23 samples (rows of et data)
+#   # 250 ms / 3,33 ms sampling interval = 75 samples (rows of eye tracking data)
+#   # If value is consecutively repeted >= 23 and <= 75, coding is "1", else "0"
+#   repets <- ifelse(repets >= lower_threshold & repets <= upper_threshold, 1, 0)
+#   # Repeated values other than Na are set to "0"
+#   repets[findna != 999 & repets == 1] <- 0
+#   # Differences between consecutive values indicate blink artefact bounderies
+#   changes <- c(diff(repets), 0)
+#   change_start <- which(changes == 1)
+#   # Blink sequence includes 8 samples before after blink, repectively.
+#   start_seq <- unlist(lapply(change_start, function(x) {
+#     seq(max(x - (samples_before - 1), 1), x)
+#     }
+#     ))
+#   repets[start_seq] <- 1
+#   changes_end <- which(changes == -1) + 1
+#   end_seq <- unlist(lapply(changes_end, function(x) {
+#     seq(x, min(x + (samples_before - 1), length(repets)))
+#     }
+#     ))
+#   repets[end_seq] <- 1
+#   # Data in blink interval is replaced with Na.
+#   signal[repets == 1] <- NA
+#   return(signal)
+# }
+# 
+# 
+# #   2.3) Pupil Dilation Preprocessing Function ----
+# func_pd_preprocess <- function(x) {
+#   left_diameter <- x$left_pupil_measure1
+#   right_diameter <- x$right_pupil_measure1
+#   remote_time <- x$ts_trial * 1000 # *1000 to convert s -> ms format
+#   # Pupil diameter outliers (< 2 mm or > 8 mm) are replaced with Na.
+#   pl <- ifelse((left_diameter < 2 | left_diameter > 8), NA, left_diameter)
+#   pr <- ifelse((right_diameter < 2 | right_diameter > 8), NA, right_diameter)
+#   # Dilation speed outliers: > constant * median change values are excluded
+#   constant <- 3
+#   # speed defined as movement / time
+#   # Dilatation speed for left eye
+#   pl_speed1 <- diff(pl) / diff(remote_time) # compared to previous et event
+#   pl_speed2 <- diff(rev(pl)) / diff(rev(remote_time)) # compared to next event
+#   pl_speed1 <- c(NA, pl_speed1)
+#   pl_speed2 <- c(rev(pl_speed2), NA)
+#   pl_speed <- pmax(pl_speed1, pl_speed2, na.rm = TRUE)
+#   rm(pl_speed1, pl_speed2)
+#   # Dilatation speed for right eye
+#   pr_speed1 <- diff(pr) / diff(remote_time) # compared to previous et event
+#   pr_speed2 <- diff(rev(pr)) / diff(rev(remote_time)) # compared to next event
+#   pr_speed1 <- c(NA, pr_speed1)
+#   pr_speed2 <- c(rev(pr_speed2), NA)
+#   pr_speed <- pmax(pr_speed1, pr_speed2, na.rm = TRUE)
+#   rm(pr_speed1, pr_speed2)
+#   # Threshold (in mm/ms): dilation speed median + 3 * median absolute deviation
+#   # Left eye
+#   pl_speed_med <- median(pl_speed, na.rm = TRUE)
+#   pl_mad <- median(abs(pl_speed - pl_speed_med), na.rm = TRUE)
+#   pl_treshold_speed <- pl_speed_med + constant * pl_mad
+#   # Right eye
+#   pr_speed_med <- median(pr_speed, na.rm = TRUE)
+#   pr_mad <- median(abs(pr_speed - pr_speed_med), na.rm = TRUE)
+#   pr_treshold_speed <- pr_speed_med + constant * pr_mad
+#   # Replace pupil data higher than threshold with Na
+#   pl <- ifelse(abs(pl_speed) > pl_treshold_speed, NA, pl)
+#   pr <- ifelse(abs(pr_speed) > pr_treshold_speed, NA, pr)
+#   # Calling function for blink correction
+#   pl <- fun_blink_cor(pl)
+#   pr <- fun_blink_cor(pr)
+#   # Two pass approach. 1st pass: Exclude deviation from trend
+#   # line derived from all samples. 2nd pass: Exclude deviation from trend
+#   # line derived from samples passing. Reintroduction of sample that might
+#   # have been falsely excluded due to outliers estimate smooth size based
+#   # on sampling rate
+#   smooth_length <- 150 # in ms
+#   # take sampling rate into account (300 vs. 120):
+#   smooth_size <- round(
+#     smooth_length / median(diff(remote_time), # remote_time is ts_trial in ms
+#     na.rm = TRUE))
+#   is_even <- function(x) {
+#     x %% 2 == 0
+#     }
+#   smooth_size <- ifelse(
+#     is_even(smooth_size) == TRUE,
+#     smooth_size + 1, smooth_size) # odd values for runmed()-function
+#   # for left and right eye:
+#   # giving the smooth function Na would raise an error
+#   pl_smooth <- na.approx(pl, na.rm = FALSE, rule = 2)
+#   # Robust Scatter Plot Smoothing
+#   if (sum(!is.na(pl_smooth)) != 0) {
+#     pl_smooth <- runmed(pl_smooth, k = smooth_size)
+#     }
+#   pl_mad <- median(abs(pl - pl_smooth), na.rm = TRUE)
+#   # Giving the smooth function Na would raise an error
+#   pr_smooth <- na.approx(pr, na.rm = FALSE, rule = 2)
+#   # Robust Scatter Plot Smoothing
+#   if (sum(!is.na(pr_smooth)) != 0) {
+#     pr_smooth <- runmed(pr_smooth, k = smooth_size)
+#     }
+#   pr_mad <- median(abs(pr - pr_smooth), na.rm = TRUE)
+#   # correct pupil dilation for size outliers - 1st pass
+#   pl_pass1 <- ifelse(
+#     (pl > pl_smooth + constant * pl_mad) | (pl < pl_smooth - constant * pl_mad),
+#     NA, pl)
+#   pr_pass1 <- ifelse(
+#     (pr > pr_smooth + constant * pr_mad) | (pr < pr_smooth - constant * pr_mad),
+#     NA, pr)
+#   # for left and right eye:
+#   # giving the smooth function Na would raise an error
+#   pl_smooth <- na.approx(pl_pass1, na.rm = FALSE, rule = 2)
+#   # Robust Scatter Plot Smoothing
+#   if (sum(!is.na(pl_smooth)) != 0) {
+#     pl_smooth <- runmed(pl_smooth, k = smooth_size)
+#     }
+#   pl_mad <- median(abs(pl - pl_smooth), na.rm = TRUE)
+#   # Giving the smooth function Na would raise an error
+#   pr_smooth <- na.approx(pr_pass1, na.rm = FALSE, rule = 2)
+#   # Robust Scatter Plot Smoothing
+#   if (sum(!is.na(pr_smooth)) != 0) {
+#     pr_smooth <- runmed(pr_smooth, k = smooth_size)
+#     }
+#   pr_mad <- median(abs(pr - pr_smooth), na.rm = TRUE)
+#   # correct pupil dilation for size outliers - 2nd pass
+#   pl_pass2 <- ifelse(
+#     (pl > pl_smooth + constant * pl_mad) | (pl < pl_smooth - constant * pl_mad),
+#     NA, pl)
+#   pr_pass2 <- ifelse(
+#     (pr > pr_smooth + constant * pr_mad) | (pr < pr_smooth - constant * pr_mad),
+#     NA, pr)
+#   pl <- pl_pass2
+#   pr <- pr_pass2
+#   # Fill Na with offset value
+#   pd_offset <- pl - pr
+#   pd_offset <- na.approx(pd_offset, rule = 2)
+#   pl <- ifelse(is.na(pl) == FALSE, pl, pr + pd_offset)
+#   pr <- ifelse(is.na(pr) == FALSE, pr, pl - pd_offset)
+#   # Interpolation of missing values < 300 ms
+#   pl <- na.approx(pl, na.rm = FALSE, maxgap = 90, rule = 2)
+#   pr <- na.approx(pr, na.rm = FALSE, maxgap = 90, rule = 2)
+#   # mean pupil dilation across both eyes
+#   pd <- (pl + pr) / 2
+#   x[, "pd"] <- pd
+#   return(x)
+# }
 
 
 
@@ -454,9 +464,13 @@ list_split_trial <- pblapply(list_split_trial, function(x) {
   return(x)
 })
 
-# Apply custom preprocessing for pd
+#apply preprocessing for pd based on Pupil_Preprocess package
 list_split_trial <- pblapply(
-  list_split_trial, func_pd_preprocess)
+  list_split_trial, pupil_preprocessing, 
+  sampling_rate=60, provide_variable_names = T,
+  left_diameter_name = 'left_pupil_measure1',
+  right_diameter_name = 'right_pupil_measure1',
+  timestamp_name = 'ts_trial')
 
 # Binary flag for baseline trials (1 = baseline, 0 = oddball)
 list_split_trial <- pblapply(list_split_trial, function(x) {
@@ -481,9 +495,6 @@ df <- df %>%
     .before = 1 # Move these columns to the start
   )
 
-# df back up
-df_backup <- df
-
 #   3.2) Calculate Global Baseline Means ----
 
 # Calculate baseline means 
@@ -502,18 +513,19 @@ ggplot(global_baseline_means, aes(x = "", y = baseline_mean)) +
        y = "Mean PD (mm)") +
   theme_minimal()
 
-# 4) Pupil Response Preprocessing----
+# 4) Pupil Response Estimation----
 
 #   4.1) Trial filtering and setup----
+
+# back ups
+df_backup <- df
+df_trial_backup <- df_trial
 
 # Remove baseline trials from eye tracking df
 df <- subset(df, trial != "baseline")
 
 # Convert ID to character for consistent merging
 df$id <- as.character(df$id)
-
-# Create backup trial df
-df_trial_backup <- df_trial
 
 # Filter out baseline trial and the last trial
 df_trial<- df_trial %>%
@@ -556,8 +568,12 @@ baseline_pds <- df_with_baseline[
   by = .(id, trial_number)
 ]
 
+#check plausibility of baseline values
+ggplot(baseline_pds,aes(x=trial_number,y=mean_baseline_pd))+geom_smooth()
+ggplot(baseline_pds,aes(x=trial_number,y=mean_baseline_pd,group=id,color=id))+geom_smooth()
+
 # Shift baseline to apply to next trial (baseline from trial N applies to trial N+1)
-baseline_pds[, trial_number := trial_number + 1]
+#baseline_pds[, trial_number := trial_number + 1]
 
 # Merge baseline values back to main data
 df_all <- merge(df_all, baseline_pds, by = c("id", "trial_number"), all.x = TRUE)
@@ -566,8 +582,11 @@ df_all <- merge(df_all, baseline_pds, by = c("id", "trial_number"), all.x = TRUE
 vars_to_remove <- "baseline_trial_counter"
 df_all[, (vars_to_remove) := NULL]
 
-# Remove first trial (no baseline available)
-df_all <- df_all[trial_number != 1]
+# Remove first three trials (habituation process)
+df_all <- df_all[!(df_all$trial_number %in% 1:3),]
+
+##check general pupillary response
+ggplot(df_all,aes(x=ts_trial,y=pd,group=trial,color=trial))+geom_smooth()
 
 # CALCULATE RAW PERIOD AVERAGES
 
@@ -582,7 +601,7 @@ pd_high <- df_all[ts_trial >= 0.4 & ts_trial <= 1.7,
                   by = .(id, trial_number)]
 
 # HIGH period: 750–1500 ms from trial start  
-pd_high_short <- df_all[ts_trial >= 0.75 & ts_trial <= 1.5,
+pd_high_short <- df_all[ts_trial >= 0.75 & ts_trial <= 1.75,
                   .(pd_high_short = mean(pd, na.rm = TRUE)),
                   by = .(id, trial_number)]
 
@@ -593,45 +612,48 @@ df_all <- merge(df_all, pd_high_short, by = c("id", "trial_number"), all.x = TRU
 
 # BASELINE CORRECTION
 
-# Correct LOW and HIGH periods for baseline
-df_all[, corr_pd_low := pd_low - mean_baseline_pd]
-df_all[, corr_pd_high := pd_high - mean_baseline_pd]
-df_all[, corr_pd_high_short := pd_high_short - mean_baseline_pd]
+# # Correct LOW and HIGH periods for baseline
+# df_all[, corr_pd_low := pd_low - mean_baseline_pd]
+# df_all[, corr_pd_high := pd_high - mean_baseline_pd]
+# df_all[, corr_pd_high_short := pd_high_short - mean_baseline_pd]
+# 
+# # Apply baseline correction to all timepoints
+# df_all[, baseline_corr_pd := pd - mean_baseline_pd]
 
-# Apply baseline correction to all timepoints
-df_all[, baseline_corr_pd := pd - mean_baseline_pd]
-
-# CALCULATE RELATIVE PUPIL DILATION (RPD)
+# # CALCULATE RELATIVE PUPIL DILATION (RPD)
+# 
+# # RPD = corrected HIGH - corrected LOW
+# df_all[, RPD := corr_pd_high - corr_pd_low]
+# df_all[, RPD_short := corr_pd_high_short - corr_pd_low]
 
 # RPD = corrected HIGH - corrected LOW
-df_all[, RPD := corr_pd_high - corr_pd_low]
-df_all[, RPD_short := corr_pd_high_short - corr_pd_low]
+df_all[, RPD := pd_high - pd_low]
+df_all[, RPD_short := pd_high_short - pd_low]
 
 # CREATE TRIAL-LEVEL SUMMARY
 # Calculate trial-level averages
 trial_level <- df_all[
   , .(
-    mean_baseline_pd = unique(mean_baseline_pd),
-    pd_low = unique(pd_low),
-    pd_high = unique(pd_high),
-    corr_pd_low = unique(corr_pd_low),
-    corr_pd_high = unique(corr_pd_high),
-    RPD = unique(RPD),
-    RPD_short = unique(RPD_short)
+    mean_baseline_pd = mean(mean_baseline_pd,na.rm=T),
+    pd_low = mean(pd_low,na.rm=T),
+    pd_high = mean(pd_high,na.rm=T),
+    # corr_pd_low = unique(corr_pd_low),
+    # corr_pd_high = unique(corr_pd_high),
+    RPD = mean(RPD,na.rm=T),
+    RPD_short = mean(RPD_short,na.rm=T)
   ), 
   by = .(id, trial_number, trial)  
 ]
 
-df_trial_all <- merge(df_trial, trial_level, by = c("id", "trial_number", "trial"), all.x = TRUE)
+df_trial_all <- merge(df_trial, trial_level, by = c("id", "trial_number", "trial"))
 df_trial_all <- as.data.table(df_trial_all)
 
-# Remove first trial (no baseline available)
-df_trial_all <- df_trial_all[trial_number != 1]
-df_trial_all[, (vars_to_remove) := NULL]
+# # Remove first trial (no baseline available)
+# df_trial_all <- df_trial_all[trial_number != 1]
+# df_trial_all[, (vars_to_remove) := NULL]
 
 # Ensure trial is properly factored with reference level
 df_trial_all[, trial := relevel(as.factor(trial), ref = "oddball")]
-
 
 # 5) Data Saving ----
 
