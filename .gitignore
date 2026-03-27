@@ -9,6 +9,8 @@ project_locusmental_wp1.Rproj
 
 **/data/
 
+data/
+output/
 venv_battery/ 
 venv_eeg/
 
