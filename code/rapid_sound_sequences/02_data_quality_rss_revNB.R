@@ -56,8 +56,8 @@ lapply(pkgs, function(pkg) {
 })
 
 # Define paths (adjust to your project)
-home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
-data_path <- "/data/rapid_sound_sequences/preprocessed/"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 
 
 # Load processed files

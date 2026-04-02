@@ -304,7 +304,8 @@ list_split_trial <- unlist(list_split_trial, recursive = FALSE)
 # ts_trial is an interval in seconds
 list_split_trial <- pblapply(list_split_trial, function(x) {
   x$ts_trial <- x$logged_time - x$beep_phase_start_timestamp
-  x$ts_search <- x$logged_time - x$beep_phase_end_timestamp
+  #x$ts_search <- x$logged_time - x$beep_phase_end_timestamp
+  x$ts_search <- x$logged_time - x$beep_phase_start_timestamp
   return(x)
 })
 

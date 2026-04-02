@@ -47,11 +47,8 @@ lapply(pkgs, function(pkg) {
 
 
 # Define paths (adjust to your project)
-#home_path <- "S:/KJP_Studien"
-home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
-#data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
-data_path <- "/data/rapid_sound_sequences/preprocessed/"
-
+home_path <- "//192.168.88.212/daten/KJP_Studien"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 
 # Load processed files
 df <- readRDS(paste0(home_path, data_path, "df_loose_high.rds")) # use the most intermediate version, gaze in the center 200 px, Control: min 4 trial, Transition: min 6 trials
@@ -245,45 +242,13 @@ ggplot(df_et_filtered, aes(x = rel_time, y = pd_corr_500,color=Condition,fill=Co
 
 ggplot(df_et_filtered, aes(x = rel_time, y = pd,color=Condition,fill=Condition)) +
   geom_smooth()+
-  xlim(-3,3)+
+  xlim(-2,3)+
   theme_bw()
-
-
-
 
 #rel_time - time from transition
 ggplot(df_et_filtered, aes(x = rel_time, y = pd_corr_500, color=condition_type)) +
   geom_smooth()+
   xlim(-3,3)
-
-
-
-
-# a<-ggplot(df_et_filtered, aes(x = ts_sequence, y = pd_corr_500, fill = Condition, color =Condition)) +
-#   geom_smooth() +
-#   scale_fill_brewer(palette = "Set1") + 
-#   scale_color_brewer(palette = "Set1", guide= "none") + 
-#   theme_minimal() +
-#   theme(
-#     plot.background = element_rect(fill = "white", color = NA),  # Changes entire plot background
-#   )+
-#   xlim(2.5,6)+
-#   labs(
-#     x = "Sequence Time (seconds)",
-#     y = "Pupil Dilation Corrected (mm)",
-#     title = "Pupil Dilation Changes Across Conditions"
-#   ) +  
-#   geom_vline(xintercept = 3, linetype = "dashed", color = "black", alpha = 0.7) +
-#   annotate("text", x = 3.2, y = 0.05, 
-#            label = "Transition", hjust = 0, fontface = "bold") +
-#   theme(
-#     legend.title = element_text(face = "bold", size = 12),
-#     legend.position = "bottom",
-#     axis.title = element_text(size = 12, face = "bold"),
-#     axis.text = element_text(size = 11),
-#     plot.title = element_text(hjust = 0.5, face = "bold", size = 14)
-#   )
-# print(a)
 
 
 ### Subject -Level Anaylsis ------

@@ -249,7 +249,6 @@ ggplot(df, aes(x = pd)) +
 # 4) Area of Interest (AOI) ----
 
 #Area of interest is defined as 500 px distance from the center, enclosing all four target positions
-
 if(length(missing_gaze_cols) == 0) {
   # Filter valid gaze points within screen bounds
   df_valid <- df %>%
