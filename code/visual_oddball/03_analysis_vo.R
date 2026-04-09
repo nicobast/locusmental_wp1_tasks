@@ -1,7 +1,7 @@
 # =============================================================================
 # Visual Oddball – Analysis
 #
-# Requires: cleaned df_aoi produced by data_quality_ao.R
+# Requires: cleaned df_aoi produced by 02_data_quality_vo.R
 #
 # Author: Iskra Todorova & Nico Bast
 # Last Update: 2026-04-09
@@ -195,29 +195,21 @@ model_performance(m_3)
 require(parameters)
 standardize_parameters(m_3)
 
+# =============================================================================
+#
+# Aggregate Data
+#
+# =============================================================================
 
+sepr_condition <- sepr_trial[
+  ,
+  .(
+    sepr_mean = mean(sepr, na.rm = TRUE),
+    n_trials  = .N
+  ),
+  by = .(id, condition)
+]
 
-
-#split/scale variables
-df_combined$CBCL_T_INT_split<-ifelse(df_combined$CBCL_T_INT>=65,'high','low')
-df_combined$CBCL_T_EXT_split<-ifelse(df_combined$CBCL_T_EXT>=65,'high','low')
-df_combined$CBCL_T_GES_split<-ifelse(df_combined$CBCL_T_GES>=65,'high','low')
-
-CBQ_NA_z<-scale(df_combined$CBQ_Negativer_Affekt_Summenwert)
-df_combined$CBQ_NA_z_split<-ifelse(CBQ_NA_z>=1.5,'high','low')
-
-df_combined$sepr_z<-scale(df_combined$sepr)
-hist(df_combined$sepr_z)
-
-m_3 <- lmer(
-  sepr_z ~ trial * 
-    CBCL_T_GES_split * CBQ_NA_z_split + 
-    (1 | id) + (1 |trial_number), 
-  data = df_combined, 
-  REML = T
-)
-
-anova(m_3)
-summary(m_3)
-emmeans(m_3,revpairwise~CBQ_NA_z_split)
-emmeans(m_3,~CBQ_NA_z_split+CBCL_T_GES_split)
+# Save 
+output_file <- paste0(home_path, data_path, "sepr_condition.rds")
+saveRDS(sepr_condition, file = output_file)
