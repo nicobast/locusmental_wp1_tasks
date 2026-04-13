@@ -20,7 +20,8 @@ invisible(lapply(pkgs, library, character.only = TRUE))
 
 # PATHS (adjust to your project)
 
-home_path <- "//192.168.88.212/daten/KJP_Studien"
+home_path <- "S:/KJP_Studien"
+#home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_search_task/"
 
 # Load files
@@ -242,8 +243,10 @@ ggplot(df, aes(x = ts_trial, y = pd_corr, fill= trial_type, color = trial_type))
 # Demo Data ####
 
 # Load your saved demo_data
-demo_path <- "//192.168.88.212/daten/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
-load(file.path(demo_path, "demo_data.rda"))
+#demo_path <- "//192.168.88.212/daten/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
+demo_path <- "/LOCUS_MENTAL/6_Versuchsdaten/"
+load(paste0(home_path, demo_path, "demo_data.rda"))
+#load(file.path(demo_path, "demo_data.rda"))
 
 data_filtered <- data
 data_filtered <- data_filtered %>%
@@ -315,3 +318,19 @@ m_1 <- lmer(
 
 anova(m_1)
 
+
+### Aggregate data ----
+
+# Aggregate only the cued trials
+# Replace 'df_cued_raw' with the actual name of your 4th task dataframe
+df_cued_agg <- df_combined %>%
+  filter(trial_type == "cued") %>%
+  group_by(id) %>%
+  summarize(
+    SEPR_CUED_mean = mean(mean_CEPR_z, na.rm = TRUE),
+    n_trials_cued  = n() # Good practice to keep track of trial counts
+  )
+
+# Save 
+output_file <- paste0(home_path, data_path, "df_cued_agg.rds")
+saveRDS(df_cued_agg, file = output_file)
