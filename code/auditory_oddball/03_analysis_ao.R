@@ -234,3 +234,27 @@ anova(m_3)
 summary(m_3)
 emmeans(m_3,revpairwise~CBQ_NA_z_split)
 emmeans(m_3,~CBQ_NA_z_split+CBCL_T_GES_split)
+
+
+#### Aggregate Data  ----
+
+# ── Aggregate: one row per participant × condition_type ──────────────────────
+df_sepr_person <- df_combined %>%
+  group_by(id, trial) %>%
+  summarise(
+    SEPR_AO_m = mean(sepr, na.rm = TRUE),
+    SEPR_AO_sd   = sd(sepr,   na.rm = TRUE),
+    n_trials        = n(),
+    .groups = "drop"
+  )
+
+# Wide format: one row per participant, columns for each condition
+df_sepr_wide <- df_sepr_person %>%
+  pivot_wider(
+    id_cols     = id,
+    names_from  = trial,
+    values_from = c(SEPR_AO_m, SEPR_AO_sd, n_trials)
+  )
+
+# ── Save for cross-task correlation ─────────────────────────────────────────
+saveRDS(df_sepr_wide, paste0(home_path, data_path, "df_sepr_aggregated_AO.rds"))
