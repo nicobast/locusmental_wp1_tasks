@@ -1,8 +1,8 @@
 ################################################################################
 #
 # Visual Oddball Preprocessing
-# Author: Iskra Todorova
-# Last Update: 26.05.2025
+# Author: Iskra Todorova & Nico Bast
+# Last Update: 17.04.2026
 # R Version: 4.4.2
 #
 ################################################################################
@@ -62,7 +62,7 @@ lapply(pkgs, function(pkg) {
 })
 
 # install pupil preprocessing package from github
-remotes::install_github("nicobast/PupilPreprocess")
+#remotes::install_github("nicobast/PupilPreprocess")
 require(PupilPreprocess)
 #detach("package:PupilPreprocess", unload=T)
 
@@ -70,11 +70,12 @@ require(PupilPreprocess)
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 BiocManager::install("rhdf5")
-
+require(rhdf5)
 
 # PATHS
 
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 project_path <- "LOCUS_MENTAL/6_Versuchsdaten"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball/"
 data_path_et <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball//eyetracking"
@@ -82,6 +83,7 @@ data_path_trial <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball//trialdata"
 datapath <- paste0(home_path, data_path) # .csv + .hdf5 input files
 datapath_et <- paste0(home_path, data_path_et)
 datapath_trial <- paste0(home_path, data_path_trial)
+
 # List all .hdf and .csv files
 data_files_et <- list.files(path = datapath_et, full.names = TRUE)
 data_files_trial <- list.files(path = datapath_trial, full.names = TRUE)
@@ -459,7 +461,7 @@ df_trial %>%
 cat("Rows in df_all before:", nrow(df_all), "\n")
 cat("Rows in df_all after: ", nrow(df_all_clean), "\n")
 
-ggplot(df_all_clean,aes(x=ts_trial,y=pd,group=condition,color=condition))+geom_smooth() #+xlim(c(0,2))
+ggplot(df_all_clean[df_all_clean$ts_trial<1.5,],aes(x=ts_trial,y=pd,group=condition,color=condition))+geom_smooth() #+xlim(c(0,2))
 
 #   3.4) Calculate stimulus-evoked pupil responses (SEPR/RPD) ----
 

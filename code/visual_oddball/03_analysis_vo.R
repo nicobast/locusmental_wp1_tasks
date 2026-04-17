@@ -24,8 +24,8 @@ invisible(lapply(pkgs, library, character.only = TRUE))
 # -----------------------------------------------------------------------------
 # Paths – adjust to your project folder
 # -----------------------------------------------------------------------------
-#home_path <- "//192.168.88.212/daten/KJP_Studien"
-home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball/"
 demo_path <- "/LOCUS_MENTAL/6_Versuchsdaten/"
 
@@ -47,11 +47,11 @@ hist(trials_by_participant)
 
 #baseline corrected pupil dilation progression within trials
 ggplot(df_aoi,aes(x=ts_trial,y=pd_corr,group=condition,color=condition,fill=condition))+
-  geom_smooth()+xlim(c(0,2))+theme_bw()
+  geom_smooth()+xlim(c(0,1.5))+theme_bw()
 
 #--> contrast versus uncorrected pupil size
 ggplot(df_aoi,aes(x=ts_trial,y=pd,group=condition,color=condition,fill=condition))+
-  geom_smooth()+xlim(c(0,2))+theme_bw()
+  geom_smooth()+xlim(c(0,1.5))+theme_bw()
 
 #  =============================================================================
 # Stimulus-Evoked Pupil Response = mean rpd in the 1– 2 s window
@@ -59,7 +59,8 @@ ggplot(df_aoi,aes(x=ts_trial,y=pd,group=condition,color=condition,fill=condition
 # =============================================================================
 
 # Aggregate SEPR per trial
-sepr_trial <- df_aoi[
+df_sepr<-df_aoi[df_aoi$ts_trial>0.5 & df_aoi$ts_trial<1.5,]
+sepr_trial <- df_sepr[
   ,
   .(sepr = mean(rpd, na.rm = TRUE)),
   by = .(id, trial_number, condition)
@@ -99,6 +100,8 @@ df_combined <- df_combined %>%
 # Fixed effect : trial (Oddball vs. Standard)
 # Random effect: random intercept per participant
 # =============================================================================
+
+hist(df_combined$sepr)
 
 m1 <- lmer(sepr ~ condition + (1 | id) + (1| trial_number), data = df_combined)
 summary(m1)

@@ -46,7 +46,8 @@ lapply(pkgs, function(pkg) {
 # Paths – adjust to your project
 # -----------------------------------------------------------------------------
 
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball/"
 
 # Load processed files
