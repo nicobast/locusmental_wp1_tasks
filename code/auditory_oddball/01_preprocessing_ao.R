@@ -495,6 +495,7 @@ trial_level <- df_all[
   ),
   by = .(id, trial_number, trial)
 ]
+
 trial_level <- merge(trial_level, baseline_pds, by = c("id", "trial_number"), all.x = TRUE)
 df_trial_all <- merge(df_trial, trial_level, by = c("id", "trial_number", "trial"))
 df_trial_all <- as.data.table(df_trial_all)

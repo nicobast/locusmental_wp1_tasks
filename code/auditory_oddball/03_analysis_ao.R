@@ -24,7 +24,8 @@ invisible(lapply(pkgs, library, character.only = TRUE))
 # -----------------------------------------------------------------------------
 # Paths – adjust to your project folder
 # -----------------------------------------------------------------------------
-home_path <- "//192.168.88.212/daten/KJP_Studien"
+#home_path <- "//192.168.88.212/daten/KJP_Studien"
+home_path <- "S:/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 demo_path <- "/LOCUS_MENTAL/6_Versuchsdaten/"
 
@@ -53,10 +54,16 @@ ggplot(df_aoi,aes(x=ts_trial,y=pd,group=trial,color=trial,fill=trial))+
   geom_smooth()+xlim(c(0,2))+theme_bw()
 
 #  =============================================================================
-# DERIVED VARIABLE: SEPR
+# DERIVED VARIABLE: SEPR & BPS
 # Stimulus-Evoked Pupil Response = mean rpd in the 0.4 – 1.7 s window
 # Computed per participant x trial, then merged back
 # =============================================================================
+
+# 1. Calculate BPS: Average baseline PD per condition per participant
+# We calculate this separately to ensure it is the average across all trials of that type
+bps_summary <- df_aoi[, .(
+  BPS = mean(mean_baseline_pd, na.rm = TRUE)
+), by = .(id, trial)]
 
 # Trial-level metadata: condition label and baseline PD (one row per trial)
 trial_meta <- df_aoi[, .(
@@ -70,7 +77,13 @@ df_model <- merge(
   trial_meta,
   by = c("id", "trial_number"), all.x = TRUE
 )
-
+# ADD BPS
+df_model <- merge(
+  df_model, 
+  bps_summary, 
+  by = c("id", "trial"), 
+  all.x = TRUE
+)
 cat(sprintf("\nModel dataset: %d trial-level rows\n", nrow(df_model)))
 cat("pd baseline corrected summary (trial-level baseline PD):\n")
 hist(df_model$pd_low)
@@ -244,6 +257,7 @@ df_sepr_person <- df_combined %>%
   summarise(
     SEPR_AO_m = mean(sepr, na.rm = TRUE),
     SEPR_AO_sd   = sd(sepr,   na.rm = TRUE),
+    BPS       = mean(BPS, na.rm = TRUE),
     n_trials        = n(),
     .groups = "drop"
   )
@@ -253,7 +267,7 @@ df_sepr_wide <- df_sepr_person %>%
   pivot_wider(
     id_cols     = id,
     names_from  = trial,
-    values_from = c(SEPR_AO_m, SEPR_AO_sd, n_trials)
+    values_from = c(SEPR_AO_m, SEPR_AO_sd,BPS, n_trials)
   )
 
 # ── Save for cross-task correlation ─────────────────────────────────────────

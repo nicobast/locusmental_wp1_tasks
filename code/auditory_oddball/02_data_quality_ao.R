@@ -46,7 +46,9 @@ lapply(pkgs, function(pkg) {
 # -----------------------------------------------------------------------------
 # Paths – adjust to your project
 # -----------------------------------------------------------------------------
-home_path <- "//192.168.88.212/daten/KJP_Studien"
+
+home_path <- "S:/KJP_Studien"
+#home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 
 df_et <- readRDS(paste0(home_path, data_path, "eyetracking_ao.rds"))

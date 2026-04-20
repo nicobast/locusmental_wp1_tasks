@@ -1,0 +1,193 @@
+---
+title: "Auditory Oddball – Data Quality Report"
+author: "Data Quality"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# REQUIRED PACKAGES
+pkgs <- c("tidyverse", "data.table")
+
+# Install packages if not installed
+installed_packages = pkgs %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+# Load packages
+library(tidyverse)
+library(data.table)
+
+# Display Session Info
+sessionInfo()
+```
+
+## Introduction
+This report documents the data quality steps for the Auditory Oddball task. The pipeline includes:
+1. PD NA check & summary
+2. Exclusion of trials with > 50% PD NAs
+3. Gaze offset check & exclusion (AOI threshold = 200 px from center)
+
+```{r load data}
+# Paths – adjust to your project
+home_path <- "S:/KJP_Studien"
+# home_path <- "//192.168.88.212/daten/KJP_Studien" # Alternative path
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
+
+# Load data
+df_et <- readRDS(paste0(home_path, data_path, "eyetracking_ao.rds"))
+```
+
+### Step 1: PD NA Check & Summary
+We first calculate the proportion of missing Pupil Dilation (PD) data per trial and per participant.
+
+```{r pressure, echo=FALSE}
+# Per-trial NA summary
+trial_na_summary <- df_et %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    total_samples = n(),
+    na_count      = sum(is.na(pd)),
+    na_prop       = mean(is.na(pd)),
+    .groups = "drop"
+  )
+
+# Overall summary
+summary(trial_na_summary$na_prop)
+
+# Per-participant NA summary
+participant_na_summary <- df_et %>%
+  group_by(id) %>%
+  summarise(
+    total_samples = n(),
+    na_count      = sum(is.na(pd)),
+    na_prop       = mean(is.na(pd)),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(na_prop))
+
+# View top participants with missing data
+head(participant_na_summary, 10)
+```
+
+### Step 2: Trial Exclusion (High NA)
+Trials with more than 50% missing pupil dilation data are excluded from further analysis.
+```{r pd-exclusion}
+na_threshold <- 0.50
+
+high_na_trials <- trial_na_summary %>%
+  filter(na_prop > na_threshold)
+
+# Exclude flagged trials from the eye-tracking data
+df <- df_et %>%
+  anti_join(high_na_trials, by = c("id", "trial_number"))
+
+# Exclusion summary statistics
+total_trials     <- nrow(trial_na_summary)
+excluded_trials  <- nrow(high_na_trials)
+remaining_trials <- total_trials - excluded_trials
+
+# Results summary
+exclusion_stats <- data.frame(
+  Metric = c("Total trials", "Excluded (NA > 50%)", "Remaining"),
+  Count = c(total_trials, excluded_trials, remaining_trials),
+  Percentage = c(100, (excluded_trials/total_trials)*100, (remaining_trials/total_trials)*100)
+)
+
+knitr::kable(exclusion_stats, digits = 2, caption = "Summary of NA filtering")
+
+```
+
+```{r na-comparison}
+# Mean NA proportion in excluded vs. included trials
+included_na_summary <- trial_na_summary %>%
+  anti_join(high_na_trials, by = c("id", "trial_number"))
+
+cat("Mean NA prop in excluded trials:", mean(high_na_trials$na_prop), "\n")
+cat("Mean NA prop in included trials:", mean(included_na_summary$na_prop), "\n")
+```
+
+### Step 3: Gaze Offset Check
+We classify samples based on their distance from the screen center (AOI = ±200 px).
+#### 3a. Gaze Pre-processing
+We average the left and right eye coordinates to get a single gaze point.
+```{r gaze processing}
+# Check for required columns
+gaze_cols <- c("left_gaze_x", "right_gaze_x", "left_gaze_y", "right_gaze_y")
+missing_gaze_cols <- setdiff(gaze_cols, names(df))
+
+if (length(missing_gaze_cols) > 0) {
+  stop("Missing gaze columns: ", paste(missing_gaze_cols, collapse = ", "))
+}
+
+# Calculate averages
+df <- df %>%
+  mutate(
+    gaze_x_px = (left_gaze_x + right_gaze_x) / 2,
+    gaze_y_px = (left_gaze_y + right_gaze_y) / 2
+  )
+
+# Summaries
+summary(df %>% select(gaze_x_px, gaze_y_px))
+```
+
+#### 3b. AOI Classification
+Samples are flagged if they fall outside the 200px boundary.
+
+```{r aoi classification}
+aoi_threshold <- 200
+
+df <- df %>%
+  mutate(
+    aoi_label      = ifelse(
+      abs(gaze_x_px) <= aoi_threshold & abs(gaze_y_px) <= aoi_threshold,
+      "AOI", "Offset"
+    ),
+    gaze_distance  = sqrt(gaze_x_px^2 + gaze_y_px^2),
+    gaze_deviated  = gaze_distance > aoi_threshold
+  )
+
+# Frequency table
+table(df$aoi_label)
+
+```
+
+#### 3c. Gaze Exclusion Summary
+```{r gaze-exclusion}
+total_samples_before <- nrow(df)
+df_aoi               <- df %>% filter(aoi_label == "AOI")
+excluded_samples     <- total_samples_before - nrow(df_aoi)
+
+cat(sprintf("Excluded Samples: %d (%.2f%%)\n", excluded_samples, (excluded_samples/total_samples_before)*100))
+cat(sprintf("Remaining Samples: %d (%.2f%%)\n", nrow(df_aoi), (nrow(df_aoi)/total_samples_before)*100))
+
+```
+
+Final Data Summary
+
+```{r final-summary}
+# Per-trial offset summary for the final dataset
+trial_offset_summary <- df %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    total_samples   = n(),
+    offset_samples  = sum(aoi_label == "Offset", na.rm = TRUE),
+    offset_prop     = mean(aoi_label == "Offset", na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(offset_prop))
+
+cat("Final Clean Dataset Statistics:\n")
+cat("Rows: ", nrow(df_aoi), "\n")
+cat("Participants: ", length(unique(df_aoi$id)), "\n")
+
+```
+
