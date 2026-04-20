@@ -54,6 +54,7 @@ ggplot(df_aoi,aes(x=ts_trial,y=pd,group=condition,color=condition,fill=condition
   geom_smooth()+xlim(c(0,1.5))+theme_bw()
 
 #  =============================================================================
+# SEPR & BPS
 # Stimulus-Evoked Pupil Response = mean rpd in the 1– 2 s window
 # Computed per participant x trial, then merged back
 # =============================================================================
@@ -65,6 +66,14 @@ sepr_trial <- df_sepr[
   .(sepr = mean(rpd, na.rm = TRUE)),
   by = .(id, trial_number, condition)
 ]
+
+# Aggregate BPS per id and condition
+bps_trial <- df_aoi[
+  ,
+  .(BPS = mean(baseline_pd, na.rm = TRUE)),
+  by = .(id,  condition)
+]
+
 
 #  =============================================================================
 #
@@ -212,6 +221,8 @@ sepr_condition <- sepr_trial[
   ),
   by = .(id, condition)
 ]
+
+sepr_condition <- merge(sepr_condition, bps_trial, by = c("id", "condition"), all.x=TRUE)
 
 # Save 
 output_file <- paste0(home_path, data_path, "sepr_condition.rds")

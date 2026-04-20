@@ -1,0 +1,239 @@
+---
+title: "Visual Search Task Data Quality"
+author: "Iskra Todorova & Nico Bast"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6)
+
+# REQUIRED PACKAGES
+pkgs <- c("tidyverse", "ggplot2", "dplyr", "patchwork", "knitr", "viridis", 
+          "DT", "kableExtra", "data.table", "readxl", "psych")
+
+# Install packages if not installed
+installed_packages = pkgs %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+# Load packages
+invisible(lapply(pkgs, library, character.only = TRUE))
+```
+
+### Load Data
+
+
+```{r load-data}
+# PATHS (adjust to your project)
+home_path <- "S:/KJP_Studien"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_search_task/"
+
+# Load processed files
+df_et <- readRDS(paste0(home_path, data_path, "eyetracking_processed.rds"))
+df_trial <- readRDS(paste0(home_path, data_path, "trialdata_processed.rds"))
+df_trial_hits_only <- readRDS(paste0(home_path, data_path, "eyetracking_trial_hits_only.rds"))
+df_trial_hits <- readRDS(paste0(home_path, data_path, "eyetracking_trial_hits.rds"))
+
+# Initial Cleaning
+df_trial <- df_trial[is.na(df_trial$baseline_fixation_start_timestamp), ]
+df_trial$trial_type <- ifelse(df_trial$auditory_cue == TRUE, "cued", "standard")
+```
+
+### Trial-Level Metrics
+We examine the distributions of various trial phases (Trial Duration, Stimulus, ISI, and Beep phases) against their expected durations.
+
+```{r trial-metrics}
+# Constants
+expected_trial_duration <- 3.5 
+expected_stimulus_duration <- 1.5
+expected_ISI_duration <- 1.5
+expected_beep_phase_duration <- 0.4
+expected_beep_duration <- 0.2
+
+# Plot 1: Trial Duration
+p1 <- ggplot(df_trial, aes(x = trial_duration)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  facet_wrap(~trial_type) +
+  xlim(c(0,10)) +
+  geom_vline(xintercept = expected_trial_duration, linetype = "dashed", color = "red", linewidth = 1) +
+  labs(title = "Distribution of Trial Duration", x = "Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Plot 2: Stimulus Duration
+p2 <- ggplot(df_trial, aes(x = actual_visual_search_duration)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~trial_type) +
+  geom_vline(xintercept = expected_stimulus_duration, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of Stimulus Duration", x = "Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Plot 3: ISI Duration
+p3 <- ggplot(df_trial, aes(x = ISI_actual_duration)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~trial_type) +
+  xlim(c(0,10)) +
+  geom_vline(xintercept = expected_ISI_duration, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of ISI Duration", x = "Duration (s)", y = "Count") +
+  theme_minimal()
+
+# Display plots using patchwork
+(p1 / p2 / p3)
+```
+
+### Pupil Dilation (PD) Data Quality
+We filter trials based on the proportion of missing Pupil Dilation data. Trials with more than 50% missing data are excluded.
+```{r pd-quality}
+na_threshold <- 0.5 
+
+trial_na_summary <- df_et %>%
+  group_by(id, trial_number) %>%
+  summarise(
+    total_samples = n(),
+    na_count = sum(is.na(pd)),
+    na_prop = mean(is.na(pd)),
+    .groups = "drop"
+  )
+
+high_na_trials <- trial_na_summary %>% filter(na_prop > na_threshold)
+
+# Exclude trials
+df <- df_et %>% anti_join(high_na_trials, by = c("id", "trial_number"))
+
+# Summary Table
+total_trials <- nrow(trial_na_summary)
+excluded_trials <- nrow(high_na_trials)
+remaining_trials <- total_trials - excluded_trials
+
+summary_df <- data.frame(
+  Metric = c("Total Trials", "Excluded Trials", "Remaining Trials"),
+  Count = c(total_trials, excluded_trials, remaining_trials),
+  Percentage = c(100, (excluded_trials/total_trials)*100, (remaining_trials/total_trials)*100)
+)
+
+kable(summary_df, digits = 2, caption = "Exclusion Summary (Missing PD Data)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+### Gaze Position and AOI Analysis
+Analysis of gaze coordinates to ensure participants remained within the monitor bounds and focused on the Area of Interest (AOI).
+```{r gaze-aoi}
+monitor_width <- 2560
+monitor_height <- 1440
+half_width <- monitor_width / 2
+half_height <- monitor_height / 2
+
+# Calculate average gaze
+df$gaze_x_px <- (df$left_gaze_x + df$right_gaze_x) / 2
+df$gaze_y_px <- (df$left_gaze_y + df$right_gaze_y) / 2
+
+# Filter off-monitor
+df_off_monitor <- df %>%
+  filter(!is.na(gaze_x_px) & !is.na(gaze_y_px) & (abs(gaze_x_px) > half_width | abs(gaze_y_px) > half_height))
+df <- anti_join(df, df_off_monitor)
+
+# AOI logic (500px from center)
+aoi_threshold <- 500
+df_valid <- df %>%
+  filter(!is.na(gaze_x_px) & !is.na(gaze_y_px)) %>%
+  mutate(
+    aoi_label = ifelse(abs(gaze_x_px) <= aoi_threshold & abs(gaze_y_px) <= aoi_threshold, "AOI", "Offset"),
+    gaze_distance = sqrt(gaze_x_px^2 + gaze_y_px^2)
+  )
+
+df_aoi <- df_valid %>% filter(aoi_label == "AOI")
+
+ggplot(df, aes(x = pd)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Pupil Dilation", x = "Pupil Dilation (mm)", y = "Frequency") +
+  theme_minimal()
+```
+
+### Baseline Pupil Diameter
+Statistical summary of baseline pupil diameter across participants and trial types.
+```{r baseline-summary}
+summary_stats <- df_aoi %>%
+  group_by(id, trial_type) %>%
+  summarise(
+    mean = mean(mean_baseline_pd, na.rm = TRUE),
+    sd = sd(mean_baseline_pd, na.rm = TRUE),
+    n = sum(!is.na(mean_baseline_pd)),
+    .groups = "drop"
+  )
+
+summary_stats %>%
+  kable(caption = "Summary Statistics of Mean Baseline PD") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(height = "500px")
+
+ggplot(df_aoi, aes(x = factor(id), y = mean_baseline_pd)) +
+  geom_boxplot(outlier.color = "red", fill = "skyblue", alpha = 0.7) +
+  facet_wrap(~trial_type, scales = "free_x") +
+  labs(title = "Baseline Pupil Diameter by Participant", x = "Participant ID", y = "Mean Baseline PD") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Performance (Hits)
+Evaluation of hit rates and response times (hit times) per condition.
+```{r hits-analysis}
+# Synchronize data frames
+valid_pairs <- df_aoi %>% select(id, trial_number) %>% distinct()
+df_trial_hits <- df_trial_hits %>% semi_join(valid_pairs, by = c("id", "trial_number"))
+df_trial_hits_only <- df_trial_hits_only %>% semi_join(valid_pairs, by = c("id", "trial_number"))
+
+# Hit Rate Summary
+hit_summary <- df_trial_hits %>%
+  group_by(id, trial_type) %>%
+  summarise(hit_rate = mean(hit, na.rm = TRUE), .groups = "drop")
+
+ggplot(hit_summary, aes(x = trial_type, y = hit_rate, fill = trial_type)) +
+  geom_violin(alpha = 0.6) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  labs(title = "Hit Rate by Trial Type", x = "Trial Type", y = "Hit Rate") +
+  theme_minimal()
+
+# Hit Time Distribution
+ggplot(df_trial_hits_only, aes(x = trial_type, y = hit_time, fill = trial_type)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Trial-Level Distribution of Hit Times", x = "Trial Type", y = "Hit Time (s)") +
+  theme_minimal()
+```
+
+### Data Quality Checks & Export
+
+```{r}
+implausible_fast <- df_trial_hits_only[hit_time < 0.2]
+implausible_slow <- df_trial_hits_only[hit_time > 1.5]
+
+cat("Implausibly fast responses (<200ms):", nrow(implausible_fast), "\n")
+cat("Implausibly slow responses (>1.5s):", nrow(implausible_slow), "\n")
+
+# Save cleaned data
+# saveRDS(df_aoi, file = paste0(home_path, data_path, "df_aoi_cleaned.rds"))
+```
+
+### Data 
+
+```{r summary}
+# 3. Calculate unique participant counts
+count_aoi <- n_distinct(df_aoi$id)
+count_hits <- n_distinct(df_trial_hits$id)
+count_hits_only <- n_distinct(df_trial_hits_only$id)
+
+# 4. Create a summary table to display results
+filtering_summary <- data.frame(
+  Dataset = c("df_aoi (Source)", "df_trial_hits (Filtered)", "df_trial_hits_only (Filtered)"),
+  Unique_Participants = c(count_aoi, count_hits, count_hits_only)
+)
+
+knitr::kable(filtering_summary, caption = "Summary of Participant Counts after Filtering")
+
+```

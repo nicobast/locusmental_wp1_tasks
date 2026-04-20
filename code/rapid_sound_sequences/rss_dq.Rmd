@@ -1,0 +1,206 @@
+---
+title: "Rapid Sound Sequences: Data Quality Report"
+author: "Iskra Todorova"
+date: "2026-02-10"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# SETUP SESSION INFO
+# sessionInfo()
+
+pkgs <- c("tidyverse", "ggplot2", "dplyr", "patchwork", "knitr", "viridis", 
+          "DT", "kableExtra", "lme4", "emmeans", "lmerTest", "ggdist", "tidyquant")
+
+# Install missing packages
+installed_packages <- pkgs %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+# Load packages
+invisible(lapply(pkgs, library, character.only = TRUE))
+```
+
+## Introduction
+This script processes raw eye-tracking and trial data for the Rapid Sound Sequences project. It focuses on calculating missing pupil diameter (PD) data, performing gaze position checks relative to Areas of Interest (AOIs), and applying exclusion criteria at both the trial and participant levels.
+
+### Define Paths and Load Data
+
+```{r load-data}
+# Define paths
+home_path <- "S:/KJP_Studien"
+#home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
+
+# Load processed files
+# Note: Ensure these files exist at the specified path
+df_et <- readRDS(paste0(home_path, data_path, "preprocessed_et_rss.rds"))
+df_trial <- readRDS(paste0(home_path, data_path, "preprocessed_trial_rss.rds"))
+```
+
+### 1. Missing Pupil Diameter (PD) Analysis
+We first assess the total amount of missing data recorded by the eye tracker.
+
+```{r missing-pd-overview}
+total_summary <- df_et %>%
+  summarise(
+    Total_Samples = n(),
+    Missing_Samples = sum(is.na(pd)),
+    Valid_Samples = sum(!is.na(pd)),
+    Percent_Missing = (Missing_Samples / Total_Samples) * 100
+  )
+
+kable(total_summary, caption = "Total PD Data Overview") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### 2.Exclusion Report
+This step differentiates between data lost due to "No Phase" labeling versus data lost due to recording quality (valid phase but no PD).
+
+```{r exclusion-report}
+exclusion_report <- df_et %>%
+  summarise(
+    total_rows = n(),
+    rows_with_no_phase = sum(is.na(trial_phase)),
+    missing_pd_in_valid_phases = sum(!is.na(trial_phase) & is.na(pd)),
+    valid_data_points = sum(!is.na(trial_phase) & !is.na(pd))
+  ) %>%
+  mutate(
+    percent_quality_loss = (missing_pd_in_valid_phases / (total_rows - rows_with_no_phase)) * 100
+  )
+
+kable(exclusion_report, caption = "Data Loss Attribution") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Create cleaned dataframe (removing NAs for subsequent gaze checks)
+df_et_clean_na <- df_et %>% filter(!is.na(pd))
+```
+
+### 3.Gaze Positions and Trial Quality
+We define our sampling parameters and AOI (Area of Interest) thresholds. We calculate gaze distance from the center and filter for valid monitor boundaries.
+
+```{r trial-processing}
+# Parameters
+expected_samples <- 360     # 6s @ 60Hz
+min_tracking_ratio <- 0.50  # 50% threshold
+
+df_trial_pool <- df_et_clean_na %>%
+  mutate(
+    gaze_x_px = (left_gaze_x + right_gaze_x) / 2,
+    gaze_y_px = (left_gaze_y + right_gaze_y) / 2,
+    gaze_dist = sqrt(gaze_x_px^2 + gaze_y_px^2)
+  ) %>%
+  # Filter for on-screen samples (assuming 2560x1440 monitor)
+  filter(!is.na(gaze_dist), abs(gaze_x_px) <= 1280, abs(gaze_y_px) <= 720) %>%
+  group_by(id, Trial.Number, Condition) %>%
+  summarise(
+    actual_n = n(),
+    tracking_ok = actual_n >= (expected_samples * min_tracking_ratio),
+    prop_135 = sum(gaze_dist <= 135) / actual_n,
+    prop_200 = sum(gaze_dist <= 200) / actual_n,
+    .groups = "drop"
+  ) %>%
+  filter(tracking_ok == TRUE)
+```
+
+### 4.Participant-Level Filtering
+We apply specific trial-count requirements per condition to determine if a participant's data is robust enough for inclusion.
+```{r filtering-logic}
+# Define Thresholds
+thresh_high <- tibble(
+  Condition = c("REG10", "RAND20", "REG10-RAND20", "RAND20-REG10", "RAND20-REG1"),
+  min_req = c(4, 4, 6, 6, 6) 
+)
+
+thresh_low <- tibble(
+  Condition = c("REG10", "RAND20", "REG10-RAND20", "RAND20-REG10", "RAND20-REG1"),
+  min_req = c(2, 2, 2, 2, 2)
+)
+
+# Helper function for completion logic
+filter_completed_ids <- function(trial_data, aoi_col, count_rules) {
+  valid_trials <- trial_data %>% filter(!!sym(aoi_col) >= 0.50)
+  
+  counts <- valid_trials %>%
+    group_by(id, Condition) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    left_join(count_rules, by = "Condition") %>%
+    mutate(meets = n >= min_req)
+  
+  ids_passing <- counts %>%
+    group_by(id) %>%
+    summarise(
+      has_rand_group = any(Condition == "RAND20" & meets) & 
+        (any(Condition == "RAND20-REG10" & meets) | any(Condition == "RAND20-REG1" & meets)),
+      has_reg_group = any(Condition == "REG10" & meets) & 
+        any(Condition == "REG10-RAND20" & meets),
+      keep = has_rand_group | has_reg_group
+    ) %>%
+    filter(keep == TRUE) %>%
+    pull(id)
+  
+  return(valid_trials %>% filter(id %in% ids_passing))
+}
+
+# Create Final Datasets
+df_strict_high <- filter_completed_ids(df_trial_pool, "prop_135", thresh_high)
+df_strict_low  <- filter_completed_ids(df_trial_pool, "prop_135", thresh_low)
+df_loose_high  <- filter_completed_ids(df_trial_pool, "prop_200", thresh_high)
+df_loose_low   <- filter_completed_ids(df_trial_pool, "prop_200", thresh_low)
+```
+
+### 5.Final Report and Visualization
+
+#### Summary Table
+
+```{r summary-table}
+report <- data.frame(
+  Dataset = c("Strict_High", "Strict_Low", "Loose_High", "Loose_Low"),
+  N_Trials = c(nrow(df_strict_high), nrow(df_strict_low), nrow(df_loose_high), nrow(df_loose_low)),
+  N_Participants = c(n_distinct(df_strict_high$id), n_distinct(df_strict_low$id), 
+                     n_distinct(df_loose_high$id), n_distinct(df_loose_low$id))
+)
+
+kable(report, caption = "Final Exclusion Summary") %>%
+  kable_styling(full_width = F, position = "left", bootstrap_options = "condensed")
+```
+
+#### Data Quality Distribution
+```{r plot quality}
+ggplot(df_trial_pool, aes(x = actual_n)) +
+  geom_histogram(fill = "steelblue", color = "white", bins = 30) +
+  geom_vline(xintercept = 180, color = "red", linetype = "dashed") +
+  labs(title = "Trial Quality (Samples per Trial)",
+       subtitle = "Trials below red line (180 samples) were excluded",
+       x = "Sample Count", y = "Frequency") +
+  theme_minimal()
+```
+
+#### Condition Comparison
+Comparing gaze proportions between Strict (135px) and Loose (200px) thresholds using high trial-count requirements.
+
+```{r}
+df_comp <- bind_rows(
+  df_strict_high %>% mutate(Type = "Strict (135px)"),
+  df_loose_high %>% mutate(Type = "Loose (200px)")
+)
+
+ggplot(df_comp, aes(x = Condition, y = if_else(Type == "Strict (135px)", prop_135, prop_200), fill = Type)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.3) +
+  theme_minimal() +
+  coord_flip() +
+  scale_fill_viridis_d(begin = 0.3, end = 0.8) +
+  labs(title = "AOI Proportion Comparison",
+       subtitle = "Using High Trial-Count Threshold",
+       y = "Gaze Proportion in AOI")
+```
+

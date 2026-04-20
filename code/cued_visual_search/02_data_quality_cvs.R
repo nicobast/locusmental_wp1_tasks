@@ -366,9 +366,7 @@ ggplot(df_aoi, aes(x = factor(id), y = mean_baseline_pd)) +
 # 6) Hits ----
 
 # Get unique ID/Trial pairs from the cleaned data
-valid_pairs <- df_aoi %>% 
-  select(id, trial_number) %>% 
-  distinct()
+valid_pairs <- unique(df_aoi[, .(id, trial_number)])
 
 # Keep only rows that exist in the valid_pairs
 df_trial_hits <- df_trial_hits %>% 

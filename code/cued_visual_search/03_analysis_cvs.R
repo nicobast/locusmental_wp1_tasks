@@ -10,7 +10,8 @@ pkgs <- c("tidyverse",
           "emmeans",
           "performance",
           "see",
-          "kableExtra")
+          "kableExtra",
+          "dplyr")
 
 installed_packages <- pkgs %in% rownames(installed.packages())
 if (any(!installed_packages)) {
@@ -116,7 +117,7 @@ print(pairs(emm_hit_position))
 
 merged_df_hit <- merged_df_hit %>%
   left_join(
-    df_trial %>% select(id, trial_number, target_color),
+    df_trial[, c("id", "trial_number", "target_color")], 
     by = c("id", "trial_number")
   )
 
@@ -324,11 +325,19 @@ anova(m_1)
 # Aggregate only the cued trials
 # Replace 'df_cued_raw' with the actual name of your 4th task dataframe
 df_cued_agg <- df_combined %>%
-  filter(trial_type == "cued") %>%
-  group_by(id) %>%
+  #filter(trial_type == "cued") %>%
+  group_by(id, trial_type) %>%
   summarize(
-    SEPR_CUED_mean = mean(mean_CEPR_z, na.rm = TRUE),
-    n_trials_cued  = n() # Good practice to keep track of trial counts
+    BPS = mean(mean_baseline_pd, na.rm = TRUE),
+    CEPR_mean_z = mean(mean_CEPR_z, na.rm = TRUE),
+    CEPR_CUED_mean = mean(mean_CEPR,, na.rm = TRUE),
+    n_trials  = n(), # Good practice to keep track of trial counts
+    .groups = "drop"
+  ) %>% 
+  pivot_wider(
+    names_from = trial_type, 
+    values_from = c(BPS, CEPR_mean_z,CEPR_CUED_mean, n_trials),
+    names_sep = "_"
   )
 
 # Save 

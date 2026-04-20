@@ -56,9 +56,10 @@ lapply(pkgs, function(pkg) {
 })
 
 # Define paths (adjust to your project)
-home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
-data_path <- "/data/rapid_sound_sequences/preprocessed/"
-
+home_path <- "S:/KJP_Studien"
+#home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
+#data_path <- "/data/rapid_sound_sequences/preprocessed/"
+data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 
 # Load processed files
 df_et <- readRDS(paste0(home_path, data_path, "eyetracking_rss.rds"))
@@ -109,113 +110,7 @@ print(exclusion_report)
    # Remove rows where pupil is NA 
   filter(!is.na(pd))
 
-
-# 2. Gaze Positions Check ----
-# 
-# # --- 1. PARAMETERS ---
-# expected_samples <- 6 * 60  # 360 samples (6 seconds @ 60Hz)
-# quality_threshold <- 0.50    # Must have at least 50% of expected samples (180)
-# aoi_threshold_rule <- 0.50   # Must have at least 50% of gaze within the AOI
-# 
-# # --- 2. CALCULATIONS & INITIAL CLEANING ---
-# df_processed <- df_et_clean_na %>%
-#   mutate(
-#     # Calculate average gaze position
-#     gaze_x_px = (left_gaze_x + right_gaze_x) / 2,
-#     gaze_y_px = (left_gaze_y + right_gaze_y) / 2,
-#     # Calculate Euclidean distance from center (0,0)
-#     gaze_distance = sqrt(gaze_x_px^2 + gaze_y_px^2)
-#   ) %>%
-#   # Basic monitor boundary check (assuming 2560x1440 monitor)
-#   filter(!is.na(gaze_distance), abs(gaze_x_px) <= 1280, abs(gaze_y_px) <= 720)
-# 
-# # --- 3. TRIAL-LEVEL QUALITY CHECK ---
-# # We check how many 'events' (samples) we have vs the 360 expected
-# df_trial_quality <- df_processed %>%
-#   group_by(id, Trial.Number, Condition) %>%
-#   summarise(
-#     actual_samples = n(),
-#     tracking_ratio = actual_samples / expected_samples,
-#     # Calculate AOI proportions for both thresholds BEFORE excluding trials
-#     prop_in_135 = sum(gaze_distance <= 135) / actual_samples,
-#     prop_in_200 = sum(gaze_distance <= 200) / actual_samples,
-#     .groups = "drop"
-#   )
-# 
-# # --- 4. DATA EXCLUSION ---
-# # Rule 1: Exclude trials with < 50% tracking (less than 180 samples)
-# # Rule 2: Exclude trials with < 50% gaze in AOI (using the strict 135px as the standard)
-# df_final_trials <- df_trial_quality %>%
-#   filter(tracking_ratio >= quality_threshold) %>%
-#   filter(prop_in_135 >= aoi_threshold_rule)
-# 
-# # --- 5. CREATE SEPARATE DATAFRAMES ---
-# # One for Strict AOI and one for Loose AOI
-# df_strict_135_final <- df_final_trials %>% select(id, Trial.Number, Condition, aoi_prop = prop_in_135)
-# df_loose_200_final  <- df_final_trials %>% select(id, Trial.Number, Condition, aoi_prop = prop_in_200)
-# 
-# # --- 6. REPORTING DATA LOSS ---
-# total_trials_raw <- nrow(df_trial_quality)
-# kept_trials      <- nrow(df_final_trials)
-# lost_trials      <- total_trials_raw - kept_trials
-# 
-# cat("\n--- EXCLUSION REPORT ---\n")
-# cat("Total Trials Recorded:     ", total_trials_raw, "\n")
-# cat("Trials Kept:               ", kept_trials, "\n")
-# cat("Total Trials Lost (n):     ", lost_trials, "\n")
-# cat("Total Trials Lost (%):     ", round((lost_trials / total_trials_raw) * 100, 2), "%\n")
-# 
-# strict_loss_pct <- (total_trials_raw - kept_trials) /
-#   total_trials_raw * 100
-# 
-# cat("\nSTRICT 135px DATA LOSS (%):",
-#     round(strict_loss_pct,2), "%\n")
-# df_strict_135_final <- df_final_trials %>%
-#   filter(prop_in_135 >= 0.50) %>%
-#   select(id, Trial.Number, Condition,
-#          aoi_prop = prop_in_135)
-# 
-# # Check for "Bad" participants (lost > 50% of their trials)
-# bad_participants <- df_trial_quality %>%
-#   group_by(id) %>%
-#   summarise(pct_loss = mean(!(Trial.Number %in% df_final_trials$Trial.Number)) * 100) %>%
-#   filter(pct_loss > 50)
-# 
-# if(nrow(bad_participants) > 0) {
-#   cat("\nWarning: The following IDs lost more than 50% of their data:\n")
-#   print(bad_participants)
-# }
-# 
-# # --- 7. VISUALIZATIONS ---
-# 
-# # Plot A: Distribution of Samples (Data Quality)
-# p1 <- ggplot(df_trial_quality, aes(x = actual_samples)) +
-#   geom_histogram(binwidth = 10, fill = "steelblue", color = "white") +
-#   geom_vline(xintercept = 180, linetype = "dashed", color = "red") +
-#   labs(title = "Data Quality: Samples per Trial",
-#        subtitle = "Red line = 50% exclusion threshold (180 samples)",
-#        x = "Number of Samples (Events)", y = "Trial Count") +
-#   theme_minimal()
-# 
-# # Plot B: Raincloud Plot of Results (Strict AOI)
-# p2 <- ggplot(df_strict_135_final, aes(x = Condition, y = aoi_prop, fill = Condition)) +
-#   stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.3, point_colour = NA) +
-#   geom_boxplot(width = .15, outlier.shape = NA, alpha = 0.5) +
-#   geom_point(aes(color = Condition), size = 1, alpha = .2, 
-#              position = position_jitter(seed = 1, width = .1)) +
-#   coord_flip() +
-#   theme_minimal() +
-#   labs(title = "Final Results: Strict AOI (135px)",
-#        subtitle = "Trials with <50% tracking or <50% AOI excluded",
-#        y = "Proportion of Gaze in AOI", x = "Condition") +
-#   theme(legend.position = "none")
-# 
-# # Display Plots
-# print(p1)
-# print(p2)
-
-
-# 3. Trials Check per participant ----
+# 2. Trials Check per participant ----
 
 # --- 1. SETTINGS & THRESHOLDS ---
 expected_samples <- 360 # 6s @ 60Hz

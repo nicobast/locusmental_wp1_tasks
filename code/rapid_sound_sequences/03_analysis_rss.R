@@ -128,6 +128,7 @@ df_bps <- df_et_filtered %>%
   group_by(id, Condition, Trial.Number) %>%
   summarise(
     BPS_start_500ms = mean(pd[rel_time >= -0.500 & rel_time <= 0], na.rm = TRUE),
+    condition_type  = first(condition_type), # Grab the label here
     .groups = "drop"
   )
 
@@ -189,12 +190,12 @@ m1_4 <- lmer(SEPR_early_z ~ condition_type * initial_sequence + Trial.Number + (
 anova(m1_4)
 
 m_interaction <- lmer(SEPR_early_z ~ condition_type * initial_sequence + 
-                        Trial.Number_c + (1 | id),
-                      data = df_combined, REML = FALSE)
+                        Trial.Number + (1 | id),
+                      data = df_sepr, REML = FALSE)
 
 m_no_interaction <- lmer(SEPR_early_z ~ condition_type + initial_sequence + 
-                           Trial.Number_c + (1 | id),
-                         data = df_combined, REML = FALSE)
+                           Trial.Number + (1 | id),
+                         data = df_sepr, REML = FALSE)
 
 anova(m_no_interaction, m_interaction)
 
@@ -336,9 +337,18 @@ df_combined %>%
   count(sex)
 
 ################################################################################
-### 11. AGGREGATE SEPR PER PERSON FOR CROSS-TASK CORRELATION ------------------
+### 11. AGGREGATE SEPR & BPS PER PERSON FOR CROSS-TASK CORRELATION ------------------
 ################################################################################
 
+# Aggregate BPS data (Mean of BPS_start_500ms per ID and Condition)
+bps_agg <- df_bps %>%
+  group_by(id, condition_type) %>%
+  summarise(
+    BPS_mean = mean(BPS_start_500ms, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Aggregate SEPR data, add BPS
 df_sepr_person <- df_sepr %>%
   group_by(id, condition_type) %>%
   summarise(
@@ -346,14 +356,15 @@ df_sepr_person <- df_sepr %>%
     SEPR_early_sd   = sd(SEPR_early,   na.rm = TRUE),
     n_trials        = n(),
     .groups = "drop"
-  )
+  )%>%
+  left_join(bps_agg, by = c("id", "condition_type" ))
 
 # Wide format: one row per participant
 df_sepr_wide <- df_sepr_person %>%
   pivot_wider(
     id_cols     = id,
     names_from  = condition_type,
-    values_from = c(SEPR_early_mean, SEPR_early_sd, n_trials),
+    values_from = c(SEPR_early_mean, SEPR_early_sd, n_trials, BPS_mean),
     names_glue  = "SEPR_RSS_{.value}_{condition_type}"
   )
 
