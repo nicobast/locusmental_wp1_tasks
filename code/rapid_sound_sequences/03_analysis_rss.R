@@ -125,7 +125,7 @@ hist(df_et_filtered$rel_time)
 #  Define BPS as 500 ms before transition
 df_bps <- df_et_filtered %>%
   filter(rel_time >= -1.000 & rel_time <= 0) %>%
-  group_by(id, Condition, Trial.Number) %>%
+  group_by(id, Condition, Trial.Number, condition_type) %>%
   summarise(
     BPS_start_500ms = mean(pd[rel_time >= -0.500 & rel_time <= 0], na.rm = TRUE),
     condition_type  = first(condition_type), # Grab the label here
@@ -134,7 +134,7 @@ df_bps <- df_et_filtered %>%
 
 # Join with pupil data to calculate corrected pd
 df_et_filtered <- df_et_filtered %>%
-  left_join(df_bps, by = c("id", "Condition", "Trial.Number"))%>%
+  left_join(df_bps, by = c("id", "Condition", "Trial.Number", "condition_type"))%>%
   mutate(pd_corr_500 = pd - BPS_start_500ms)
 
 ################################################################################
@@ -143,7 +143,7 @@ df_et_filtered <- df_et_filtered %>%
 # Late  SEPR: 1.5 s to 3.0 s post-event
 ################################################################################
 df_sepr <- df_et_filtered %>%
-  group_by(id, Condition,condition_type, initial_sequence, Trial.Number) %>%
+  group_by(id, Condition , condition_type, initial_sequence, Trial.Number) %>%
   summarise(
     # Mean for the 500ms to 2s window
     SEPR_early = mean(pd_corr_500[rel_time >= 0.5 & rel_time <= 2.0], na.rm = TRUE),
@@ -336,6 +336,84 @@ df_combined %>%
   count(id, sex) %>% 
   count(sex)
 
+
+################################################################################
+### 11. SUBJECT LEVEL AVERAGE -------------------------------------------
+################################################################################
+
+# 1. Subject-level Averages using Tracker Precision
+df_subject_avg <- df_et_filtered %>%
+  # We convert rel_time into "sample counts" (60 samples per second)
+  # This aligns every participant to the exact 16.67ms tracker grid
+  mutate(sample_idx = round(rel_time * 60)) %>%
+  
+  # Group by ID, Condition, and the specific Sample
+  group_by(id, Condition, sample_idx) %>%
+  summarise(pd_subject = mean(pd_corr_500, na.rm = TRUE), .groups = "drop") %>%
+  
+  # Optional: Convert sample_idx back to real time for plotting later
+  mutate(time_seconds = sample_idx / 60)
+
+# 2. Pivot to calculate the difference (Transition - Control) per participant
+df_subject_diffs <- df_subject_avg %>%
+  select(id, sample_idx, time_seconds, Condition, pd_subject) %>%
+  pivot_wider(names_from = Condition, values_from = pd_subject) %>%
+  mutate(
+    diff_REG10_to_RAND20 = `REG10-RAND20` - `REG10`,
+    diff_RAND20_to_REG10 = `RAND20-REG10` - `RAND20`,
+    diff_RAND20_to_REG1   = `RAND20-REG1` - `RAND20`
+  )
+
+# 3. Grand Average of the Differences
+df_grand_avg_diffs <- df_subject_diffs %>%
+  # Select only the difference columns
+  select(sample_idx, time_seconds, starts_with("diff_")) %>%
+  # Make it long for averaging and plotting
+  pivot_longer(cols = starts_with("diff_"), 
+               names_to = "Transition_Type", 
+               values_to = "PD_Diff") %>%
+  # Average across all participants
+  group_by(Transition_Type, time_seconds) %>%
+  summarise(
+    mean_diff = mean(PD_Diff, na.rm = TRUE),
+    se_diff = sd(PD_Diff, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+# 4. Reshape for ggplot
+df_plot_long <- df_subject_diffs %>%
+  select(id, time_seconds, `diff_REG10_to_RAND20`, `diff_RAND20_to_REG10`, `diff_RAND20_to_REG1`) %>%
+  pivot_longer(
+    cols = -c(id, time_seconds), 
+    names_to = "Transition_Type", 
+    values_to = "PD_Difference"
+  )
+
+# 5.  plot
+ggplot(df_plot_long, aes(x = time_seconds, y = PD_Difference, color = Transition_Type, fill = Transition_Type)) +
+  # geom_smooth calculates the mean line AND the confidence interval automatically
+  # method = "gam" or "loess" works well for pupil data
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), size = 1.2) +
+  xlim(-0.5,3)+
+  
+  # Add a horizontal line at 0 (No difference)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  
+  # Add a vertical line at the event onset
+  geom_vline(xintercept = 0, color = "darkgrey") +
+  
+  theme_minimal() +
+  labs(
+    title = "Sequential Difference Waves (SEPR)",
+    subtitle = "Smoothed Mean with 95% Confidence Interval (Subject-Level)",
+    x = "Time from Event (seconds)",
+    y = "Δ Pupil Diameter (Absolute units)",
+    color = "Transition Type",
+    fill = "Transition Type"
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1")
+
 ################################################################################
 ### 11. AGGREGATE SEPR & BPS PER PERSON FOR CROSS-TASK CORRELATION ------------------
 ################################################################################
@@ -365,17 +443,53 @@ df_sepr_wide <- df_sepr_person %>%
     id_cols     = id,
     names_from  = condition_type,
     values_from = c(SEPR_early_mean, SEPR_early_sd, n_trials, BPS_mean),
-    names_glue  = "SEPR_RSS_{.value}_{condition_type}"
+    names_glue  = "RSS_{.value}_{condition_type}"
   )
 
-# Difference score (transition - control): removes individual baseline reactivity
+# Add condition differences as aggregated mean values
+# Define  "Window of Interest", same as for SEPR early
+start_win <- 0.5
+end_win   <- 2.0
+
+# aggregate data
+df_aggregated_features <- df_subject_diffs %>%
+  # 1. Filter for the time window where the physiological response happens
+  filter(time_seconds >= start_win & time_seconds <= end_win) %>%
+  
+  # 2. Group by subject to get one row per person
+  group_by(id) %>%
+  summarise(
+    mean_diff_REG_to_RAND = mean(diff_REG10_to_RAND20, na.rm = TRUE),
+    mean_diff_RAND_to_REG10 = mean(diff_RAND20_to_REG10, na.rm = TRUE),
+    mean_diff_RAND_to_REG1 = mean(diff_RAND20_to_REG1, na.rm = TRUE),
+   
+  ) %>%
+  ungroup()
+
+#merge 
 df_sepr_wide <- df_sepr_wide %>%
-  mutate(
-    SEPR_RSS_diff = SEPR_RSS_SEPR_early_mean_transition - SEPR_RSS_SEPR_early_mean_control
-  )
+  left_join(df_aggregated_features, by = "id")
+
 
 # Save for cross-task correlation
 saveRDS(df_sepr_wide, paste0(home_path, data_path, "df_sepr_aggregated_RSS.rds"))
 
 cat("\nAggregated SEPR saved. N =", nrow(df_sepr_wide), "participants\n")
 
+# Extract BPSs data for habituation model
+bps <- df_et_filtered %>%
+  group_by(id, Trial.Number) %>% 
+  # Taking the first occurrence of each trial
+  slice(1) %>% 
+  # Selecting and renaming the columns
+  select(
+    id, 
+    Trial.Number, 
+    BPS = BPS_start_500ms, 
+    Condition, 
+    condition_type
+  ) %>%
+  ungroup()
+
+# Save bps data
+saveRDS(bps, paste0(home_path, data_path, "bps_data.rds"))

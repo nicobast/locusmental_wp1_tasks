@@ -272,3 +272,15 @@ df_sepr_wide <- df_sepr_person %>%
 
 # ── Save for cross-task correlation ─────────────────────────────────────────
 saveRDS(df_sepr_wide, paste0(home_path, data_path, "df_sepr_aggregated_AO.rds"))
+
+# Extract baseline pupil size data for habituation model
+bps <- df_aoi[, .(
+  BPS = mean_baseline_pd[1], 
+  condition = trial[1]#, 
+  #trial_number = trial_number[1]
+), 
+by = .(id, trial_number)
+]
+
+# save bps data
+saveRDS(bps, paste0(home_path, data_path, "bps_data.rds"))

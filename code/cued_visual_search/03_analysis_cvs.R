@@ -330,16 +330,34 @@ df_cued_agg <- df_combined %>%
   summarize(
     BPS = mean(mean_baseline_pd, na.rm = TRUE),
     CEPR_mean_z = mean(mean_CEPR_z, na.rm = TRUE),
-    CEPR_CUED_mean = mean(mean_CEPR,, na.rm = TRUE),
+    CEPR_CUED_mean = mean(mean_CEPR, na.rm = TRUE),
+    SEPR_mean = mean(mean_SEPR, na.rm = TRUE),
     n_trials  = n(), # Good practice to keep track of trial counts
     .groups = "drop"
   ) %>% 
   pivot_wider(
     names_from = trial_type, 
-    values_from = c(BPS, CEPR_mean_z,CEPR_CUED_mean, n_trials),
+    values_from = c(BPS,SEPR_mean, CEPR_mean_z,CEPR_CUED_mean, n_trials),
     names_sep = "_"
   )
 
 # Save 
 output_file <- paste0(home_path, data_path, "df_cued_agg.rds")
 saveRDS(df_cued_agg, file = output_file)
+
+# Extract BPSs data for habituation model
+bps <- df%>%
+  group_by(id, trial_number) %>% 
+  # Taking the first occurrence of each trial
+  slice(1) %>% 
+  # Selecting and renaming the columns
+  select(
+    id, 
+    trial_number, 
+    BPS = mean_baseline_pd, 
+    Condition = trial_type
+  ) %>%
+  ungroup()
+
+# Save bps data
+saveRDS(bps, paste0(home_path, data_path, "bps_data.rds"))
