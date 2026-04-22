@@ -1,0 +1,647 @@
+---
+title: "LOCUS-MENTAL Eye Tracking Battery Validation"
+author: "Iskra Todorova & Nico Bast"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    number_sections: true
+    code_folding: show
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo       = TRUE,
+  warning    = FALSE,
+  message    = FALSE,
+  fig.width  = 10,
+  fig.height = 7,
+  dpi        = 150
+)
+```
+
+---
+
+# Setup
+
+## Package Installation & Loading
+
+```{r packages, }
+pkgs <- c(
+  "tidyverse", "GGally", "lme4", "emmeans", "lmerTest",
+  "dplyr", "corrplot", "factoextra", "ggpubr", "Hmisc", "kableExtra", "broom"
+)
+
+installed_packages <- pkgs %in% rownames(installed.packages())
+if (any(!installed_packages)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+lapply(pkgs, function(pkg) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    message(paste("Package", pkg, "could not be loaded."))
+  }
+})
+```
+
+## File Paths
+
+```{r paths}
+home_path      <- "S:/KJP_Studien"
+data_path_vo   <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_oddball/"
+data_path_ao   <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
+data_path_rss  <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
+data_path_cvs  <- "/LOCUS_MENTAL/6_Versuchsdaten/visual_search_task/"
+demo_data_path <- "S:/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
+```
+
+---
+
+# Data Loading
+
+```{r load-data}
+# Aggregated task data
+df_ao  <- readRDS(paste0(home_path, data_path_ao,  "df_sepr_aggregated_AO.rds"))
+df_vo  <- readRDS(paste0(home_path, data_path_vo,  "sepr_condition.rds"))
+df_rss <- readRDS(paste0(home_path, data_path_rss, "df_sepr_aggregated_RSS.rds"))
+df_cvs <- readRDS(paste0(home_path, data_path_cvs, "df_cued_agg.rds"))
+
+# Baseline pupil size (BPS) trial-level data
+bps_rss <- readRDS(paste0(home_path, data_path_rss, "bps_data.rds"))
+bps_ao  <- readRDS(paste0(home_path, data_path_ao,  "bps_data.rds"))
+bps_cvs <- readRDS(paste0(home_path, data_path_cvs, "bps_data.rds"))
+
+# Demographic data
+load(file.path(demo_data_path, "demo_data.rda"))
+demo_data <- data
+```
+
+---
+
+# Data Preparation
+
+Each task dataset is cleaned and standardised before being joined into a single master dataframe.
+
+## Auditory Oddball (AO)
+
+```{r prep-ao}
+data_ao <- df_ao %>%
+  select(id, SEPR_AO_m_oddball, SEPR_AO_m_standard, BPS_oddball, BPS_standard) %>%
+  rename(
+    BPS_AO_standard = BPS_standard,
+    BPS_AO_oddball  = BPS_oddball
+  ) %>%
+  mutate(
+    SEPR_AO_standard_z = as.numeric(scale(SEPR_AO_m_standard)),
+    SEPR_AO_oddball_z  = as.numeric(scale(SEPR_AO_m_oddball))
+  )
+```
+
+## Rapid Sound Sequences (RSS)
+
+```{r prep-rss}
+data_rss <- df_rss %>%
+  select(
+    id,
+    RSS_SEPR_early_mean_control, RSS_SEPR_early_mean_transition,
+    RSS_BPS_mean_control, RSS_BPS_mean_transition,
+    mean_diff_RAND_to_REG1, mean_diff_REG_to_RAND, mean_diff_RAND_to_REG10
+  ) %>%
+  rename(
+    BPR_RSS_control    = RSS_BPS_mean_control,
+    BPS_RSS_transition = RSS_BPS_mean_transition
+  ) %>%
+  mutate(
+    RSS_transition_z = as.numeric(scale(RSS_SEPR_early_mean_transition)),
+    RSS_control_z    = as.numeric(scale(RSS_SEPR_early_mean_control))
+  )
+```
+
+## Visual Oddball (VO)
+
+```{r prep-vo}
+# Pivot from long to wide; retain only participants with >= 7 trials in both conditions
+data_vo <- df_vo %>%
+  filter(n_trials >= 7) %>%
+  group_by(id) %>%
+  filter(n() == 2) %>%
+  ungroup() %>%
+  mutate(sepr_scaled = as.numeric(scale(sepr_mean))) %>%
+  select(id, condition, sepr_mean, sepr_scaled, BPS, n_trials) %>%
+  pivot_wider(
+    names_from  = condition,
+    values_from = c(sepr_mean, sepr_scaled, BPS, n_trials),
+    names_glue  = "{.value}_VO_{condition}"
+  )
+
+cat("Participants remaining in VO task:", nrow(data_vo), "\n")
+```
+
+## Cued Visual Search (CVS)
+
+```{r prep-cvs}
+data_cvs <- df_cvs %>%
+  select(
+    id,
+    CEPR_CUED_mean_cued, CEPR_CUED_mean_standard,
+    SEPR_mean_cued, SEPR_mean_standard,
+    BPS_cued, BPS_standard
+  )
+```
+
+## Master Dataframe
+
+```{r join-data}
+# Full join retains all participants; missing tasks appear as NAs.
+# VO excluded pending data structure harmonisation — see note above.
+df_final <- data_ao %>%
+  full_join(data_rss, by = "id") %>%
+  # full_join(data_vo, by = "id") %>%
+  full_join(data_cvs, by = "id")
+
+cat("Total participants in master dataframe:", nrow(df_final), "\n")
+```
+
+> **Note:** The VO task is currently excluded from the master dataframe because the
+> task effects did not worked out as expected probably due to task structure.
+> However the BPS is included in the analysis.
+> Re-enable the commented `full_join` line and remove the VO row from the BPS summary
+> if the data is needed
+---
+
+# Baseline Pupil Size (BPS)
+
+BPS reflects individual differences in tonic arousal and is expected to be highly stable
+within a person across tasks. 
+
+## Within-Battery Consistency
+
+```{r bps-consistency}
+bps_matrix <- df_final %>% select(id, starts_with("BPS"))
+
+cor_bps <- cor(
+  bps_matrix %>% select(-id),
+  use    = "pairwise.complete.obs",
+  method = "spearman"
+)
+
+cat("Spearman Correlations of Baseline Pupil Size Across Tasks:\n")
+print(round(cor_bps, 2))
+```
+
+```{r bps-corrplot, fig.height=6, fig.width=7}
+corrplot(
+  cor_bps,
+  method      = "color",
+  type        = "upper",
+  tl.col      = "black",
+  tl.srt      = 45,
+  addCoef.col = "black",
+  number.cex  = 0.8,
+  col         = colorRampPalette(c("#2166AC", "white", "#B2182B"))(200),
+  title       = "BPS Cross-Task Consistency (Spearman)",
+  mar         = c(0, 0, 2, 0)
+)
+```
+
+## BPS Descriptive Summary
+
+```{r bps-summary}
+bps_summary <- data.frame(
+  Task     = c("AO", "RSS", "CVS"),
+  Mean_BPS = c(
+    mean(df_final$BPS_AO_standard,    na.rm = TRUE),
+    mean(df_final$BPS_RSS_transition, na.rm = TRUE),
+    mean(df_final$BPS_cued,           na.rm = TRUE)
+  ),
+  SD_BPS = c(
+    sd(df_final$BPS_AO_standard,    na.rm = TRUE),
+    sd(df_final$BPS_RSS_transition, na.rm = TRUE),
+    sd(df_final$BPS_cued,           na.rm = TRUE)
+  )
+)
+
+bps_summary %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  kable(caption = "Mean Baseline Pupil Size (mm) per Task") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+---
+
+# Habituation Analysis
+
+Mixed-effects models test whether BPS drifts systematically over the course of each task.
+Expectation: negative estimates
+
+## BPS Trajectory Plots
+
+Trial-by-trial mean BPS for each task. A downward trend indicates habituation; a flat
+profile indicates stable arousal across the session.
+
+```{r bps-trajectories, fig.height=5, fig.width=12}
+# AO
+ao_traj <- bps_ao %>%
+  group_by(trial_number) %>%
+  summarise(mean_BPS = mean(BPS, na.rm = TRUE),
+            se_BPS   = sd(BPS, na.rm = TRUE) / sqrt(n()),
+            .groups  = "drop") %>%
+  mutate(Task = "Auditory Oddball")
+
+# CVS
+cvs_traj <- bps_cvs %>%
+  group_by(trial_number) %>%
+  summarise(mean_BPS = mean(BPS, na.rm = TRUE),
+            se_BPS   = sd(BPS, na.rm = TRUE) / sqrt(n()),
+            .groups  = "drop") %>%
+  mutate(Task = "Cued Visual Search")
+
+# RSS
+rss_traj <- bps_rss %>%
+  rename(trial_number = Trial.Number) %>%
+  group_by(trial_number) %>%
+  summarise(mean_BPS = mean(BPS, na.rm = TRUE),
+            se_BPS   = sd(BPS, na.rm = TRUE) / sqrt(n()),
+            .groups  = "drop") %>%
+  mutate(Task = "Rapid Sound Sequences")
+
+bind_rows(ao_traj, cvs_traj, rss_traj) %>%
+  ggplot(aes(x = trial_number, y = mean_BPS)) +
+  geom_ribbon(aes(ymin = mean_BPS - se_BPS, ymax = mean_BPS + se_BPS),
+              fill = "steelblue", alpha = 0.2) +
+  geom_line(colour = "steelblue", linewidth = 0.8) +
+  geom_smooth(method = "lm", colour = "red", linetype = "dashed",
+              linewidth = 0.7, se = FALSE) +
+  facet_wrap(~ Task, scales = "free_x") +
+  labs(
+    title   = "Baseline Pupil Size Over Trials (Mean ± SE)",
+    x       = "Trial Number",
+    y       = "Mean BPS (mm)",
+    caption = "Red dashed line = linear trend fit. Shaded band = ±1 SE across participants."
+  ) +
+  theme_bw(base_size = 12) +
+  theme(strip.background = element_rect(fill = "grey90"))
+```
+
+## Auditory Oddball
+
+```{r hab-ao}
+bps_ao$condition <- as.factor(bps_ao$condition)
+
+m_ao_hab <- lmer(BPS ~ trial_number + (1 | id), data = bps_ao)
+cat("--- AO: Main effect of trial number ---\n")
+print(anova(m_ao_hab))
+
+m_ao_int <- lmer(BPS ~ trial_number * condition + (1 | id), data = bps_ao)
+cat("--- AO: Trial number x Condition interaction ---\n")
+print(anova(m_ao_int))
+```
+
+## Cued Visual Search
+
+```{r hab-cvs}
+bps_cvs$Condition    <- as.factor(bps_cvs$Condition)
+bps_cvs$trial_number <- as.numeric(bps_cvs$trial_number)
+
+m_cvs_hab <- lmer(BPS ~ trial_number + (1 | id), data = bps_cvs)
+cat("--- CVS: Main effect of trial number ---\n")
+print(anova(m_cvs_hab))
+
+m_cvs_int <- lmer(BPS ~ trial_number * Condition + (1 | id), data = bps_cvs)
+cat("--- CVS: Trial number x Condition interaction ---\n")
+print(anova(m_cvs_int))
+```
+
+## Rapid Sound Sequences
+
+```{r hab-rss}
+bps_rss$Condition    <- as.factor(bps_rss$Condition)
+bps_rss$Trial.Number <- as.numeric(bps_rss$Trial.Number)
+
+m_rss_hab <- lmer(BPS ~ Trial.Number + (1 | id), data = bps_rss)
+cat("--- RSS: Main effect of trial number ---\n")
+print(anova(m_rss_hab))
+
+m_rss_int <- lmer(BPS ~ Trial.Number * Condition + (1 | id), data = bps_rss)
+cat("--- RSS: Trial number x Condition interaction ---\n")
+print(anova(m_rss_int))
+```
+
+---
+
+# Correlation Analysis
+
+> **Method note:** Spearman rank correlations are used throughout as the primary measure,
+> as pupil dilation data may deviate from normality.
+
+## Build Correlation Dataset
+
+```{r cor-data}
+df_cor_rpd_raw <- df_final %>%
+  select(
+    id,
+    SEPR_AO_m_oddball, SEPR_AO_m_standard,                                  # AO
+    RSS_SEPR_early_mean_control, RSS_SEPR_early_mean_transition,             # RSS SEPR
+    mean_diff_RAND_to_REG1, mean_diff_REG_to_RAND, mean_diff_RAND_to_REG10, # RSS diffs
+    SEPR_mean_cued, SEPR_mean_standard,                                      # CVS SEPR
+    CEPR_CUED_mean_cued, CEPR_CUED_mean_standard                             # CVS CEPR
+  )
+
+cat("N participants in correlation dataset:", nrow(df_cor_rpd_raw), "\n")
+```
+
+## Spearman Correlation Matrix with FDR-Corrected p-values
+
+`Hmisc::rcorr()` computes r and p simultaneously. p-values are then corrected for
+multiple comparisons using the Benjamini-Hochberg (FDR) procedure.
+
+```{r spearman-fdr}
+cor_obj <- Hmisc::rcorr(
+  as.matrix(df_cor_rpd_raw %>% select(-id)),
+  type = "spearman"
+)
+
+r_mat <- cor_obj$r
+p_mat <- cor_obj$P
+
+# Apply BH-FDR correction to all upper-triangle p-values
+p_fdr_mat <- matrix(NA, nrow = nrow(p_mat), ncol = ncol(p_mat),
+                    dimnames = dimnames(p_mat))
+p_fdr_vec <- p.adjust(p_mat[upper.tri(p_mat)], method = "BH")
+p_fdr_mat[upper.tri(p_fdr_mat)] <- p_fdr_vec
+p_fdr_mat[lower.tri(p_fdr_mat)] <- t(p_fdr_mat)[lower.tri(p_fdr_mat)]
+diag(p_fdr_mat)                 <- 1  # diagonal has no p-value; set to 1 so corrplot ignores it
+
+cat("Spearman r matrix:\n")
+print(round(r_mat, 2))
+cat("\nFDR-corrected p-value matrix (BH):\n")
+print(round(p_fdr_mat, 3))
+```
+
+```{r spearman-corrplot, fig.height=8, fig.width=9}
+# 1. Get the number of variables to help with positioning
+n <- ncol(r_mat)
+
+# 2. Run corrplot WITHOUT addCoef.col
+corrplot(
+  r_mat,
+  method      = "color",
+  type        = "upper",
+  tl.col      = "black",
+  tl.srt      = 45,
+  tl.cex      = 0.8,
+  addCoef.col = NULL,      # Change this to NULL to stop the overlap
+  p.mat       = p_fdr_mat,
+  sig.level   = 0.05,
+  insig       = "pch",   
+  pch         = 8,       
+  pch.cex     = 1.2,      # Slightly smaller stars help readability
+  pch.col     = "black",
+  col         = colorRampPalette(c("#2166AC", "white", "#B2182B"))(200),
+  title       = "Spearman Correlations (stars = FDR p < .05)",
+  mar         = c(0, 0, 2, 0)
+)
+
+# 3. Manually add the coefficients with a slight downward offset
+# This loops through the upper triangle (where column j > row i)
+for (i in 1:(n-1)) {
+  for (j in (i+1):n) {
+    # x is the column (j), y is the row (reversed for corrplot: n - i + 1)
+    # We use 'pos = 1' to place the text directly below the center point
+    text(x = j, 
+         y = n - i + 1, 
+         labels = round(r_mat[i, j], 2), 
+         pos = 1,       # pos=1 puts text BELOW the center; pos=3 puts it ABOVE
+         offset = 0.6,  # adjust this number to move the text further up or down
+         cex = 0.6, 
+         col = "black")
+  }
+}
+```
+
+## Significant Correlation Pairs (FDR p < .05)
+
+```{r sig-pairs}
+vars <- colnames(r_mat)
+
+data.frame(
+  Var1  = vars[row(r_mat)[upper.tri(r_mat)]],
+  Var2  = vars[col(r_mat)[upper.tri(r_mat)]],
+  r     = round(r_mat[upper.tri(r_mat)], 3),
+  p_fdr = round(p_fdr_mat[upper.tri(p_fdr_mat)], 4)
+) %>%
+  filter(p_fdr < 0.05) %>%
+  arrange(p_fdr) %>%
+  kable(caption = "Significant Spearman Correlations (FDR-corrected p < .05)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Pairwise Scatter Plot Matrix (GGally)
+
+```{r ggpairs, fig.height=13, fig.width=13}
+ggpairs(
+  df_cor_rpd_raw %>% select(-id),
+  columns = 1:(ncol(df_cor_rpd_raw) - 1),
+  upper   = list(continuous = wrap("cor", method = "spearman", size = 3)),
+  lower   = list(continuous = wrap("points", alpha = 0.3, size = 0.8)),
+  diag    = list(continuous = wrap("densityDiag"))
+) +
+  theme_bw(base_size = 9) +
+  labs(title = "Battery Validation: Spearman Correlations Across Pupil Tasks")
+```
+
+## Cross-Task Summary: Primary Condition Means
+
+The most direct test of convergent validity: Spearman correlations between the single
+primary outcome from each task (AO Oddball, RSS Transition, CVS Cued).
+
+```{r summary-cors}
+cross_task_cor <- df_final %>%
+  select(
+    AO_Oddball     = SEPR_AO_m_oddball,
+    RSS_Transition = RSS_SEPR_early_mean_transition,
+    Cued_Task      = CEPR_CUED_mean_cued
+  ) %>%
+  as.matrix() %>%
+  Hmisc::rcorr(type = "spearman")
+
+cat("Cross-task r:\n")
+print(round(cross_task_cor$r, 2))
+cat("\nCross-task p (uncorrected — only 3 pairs):\n")
+print(round(cross_task_cor$P, 3))
+```
+
+---
+
+# Principal Component Analysis (PCA)
+
+PCA summarises the shared variance structure across all task conditions and helps
+identify whether tasks cluster into interpretable groups or measure largely independent
+processes.
+
+## Run PCA
+
+```{r pca-run}
+pca_data       <- df_cor_rpd_raw[, 2:ncol(df_cor_rpd_raw)]
+pca_data_clean <- na.omit(pca_data)
+
+cat("N entering PCA (complete cases):", nrow(pca_data_clean),
+    "of", nrow(pca_data), "total\n")
+
+pca_result <- prcomp(pca_data_clean, center = TRUE, scale. = TRUE)
+```
+
+## Scree Plot
+
+```{r pca-scree}
+fviz_eig(pca_result, addlabels = TRUE, ncp = 6) +
+  geom_hline(yintercept = 100 / ncol(pca_data_clean),
+             linetype = "dashed", colour = "grey50") +
+  labs(
+    title   = "Scree Plot: Variance Explained by Each Component",
+    caption = "Dashed line = variance expected per variable under a null model (equal share)"
+  ) +
+  theme_bw()
+```
+
+## Variable Factor Map
+
+```{r pca-var}
+fviz_pca_var(
+  pca_result,
+  col.var       = "contrib",
+  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+  repel         = TRUE
+) +
+  labs(title = "Task Groupings (PCA Variable Factor Map)") +
+  theme_bw()
+```
+
+## Component Loadings (PC1-PC3)
+
+```{r pca-loadings}
+loadings_df <- as.data.frame(round(pca_result$rotation[, 1:3], 3))
+
+loadings_df %>%
+  kable(caption = "PCA Loadings - First Three Components") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  row_spec(which(abs(loadings_df$PC1) > 0.3), bold = TRUE)
+```
+
+---
+
+# Demographic & Clinical Associations
+
+## Merge Demographic Data
+
+```{r demo-merge}
+demo_vars <- demo_data %>%
+  rename(id = ID) %>%
+  select(id, sex, CBCL_T_INT, CBCL_T_EXT, CBCL_T_GES, IQ_verbal_z, IQ_nonverbal_z)
+
+bps_matrix_d     <- bps_matrix     %>% inner_join(demo_vars, by = "id")
+df_cor_rpd_raw_d <- df_cor_rpd_raw %>% inner_join(demo_vars, by = "id")
+
+cat("N with complete demographic data:", nrow(bps_matrix_d), "\n")
+```
+
+## Correlations: BPS x Demographics
+
+```{r cor-bps-demo, fig.height=7, fig.width=8}
+# Setup data
+cor_data      <- bps_matrix_d %>%
+  mutate(sex = as.numeric(as.factor(sex))) %>%
+  select(-id)
+
+bps_demo_cor  <- Hmisc::rcorr(as.matrix(cor_data), type = "spearman")
+bps_p <- bps_demo_cor$P
+diag(bps_p) <- 1 
+
+# 1. Plot without automatic coefficients
+corrplot(
+  bps_demo_cor$r,
+  method      = "color",
+  type        = "upper",
+  tl.col      = "black",
+  tl.srt      = 45,
+  tl.cex      = 0.8,
+  addCoef.col = NULL,      # Disabled to prevent overlap
+  p.mat       = bps_p,
+  sig.level   = 0.05,
+  insig       = "label_sig",
+  col         = colorRampPalette(c("#2166AC", "white", "#B2182B"))(200),
+  title       = "BPS x Demographics (Spearman, stars = p < .05)",
+  mar         = c(0, 0, 2, 0)
+)
+
+# 2. Add coefficients manually with an offset
+n_bps <- ncol(bps_demo_cor$r)
+for (i in 1:(n_bps-1)) {
+  for (j in (i+1):n_bps) {
+    text(x = j, 
+         y = n_bps - i + 1, 
+         labels = sprintf("%.2f", bps_demo_cor$r[i, j]), 
+         pos = 1,      # Places text BELOW the center/star
+         offset = 0.7, # Adjust this if you want the number higher or lower
+         cex = 0.65, 
+         col = "black")
+  }
+}
+```
+
+## Correlations: SEPR x Demographics
+
+```{r cor-sepr-demo, fig.height=8, fig.width=9}
+# Setup data
+cor_df        <- df_cor_rpd_raw_d %>%
+  mutate(sex = as.numeric(as.factor(sex))) %>%
+  select(-id)
+
+sepr_demo_cor <- Hmisc::rcorr(as.matrix(cor_df), type = "spearman")
+sepr_p <- sepr_demo_cor$P
+diag(sepr_p) <- 1 
+
+# 1. Plot without automatic coefficients
+corrplot(
+  sepr_demo_cor$r,
+  method      = "color",
+  type        = "upper",
+  tl.col      = "black",
+  tl.srt      = 45,
+  tl.cex      = 0.75,
+  addCoef.col = NULL,      # Disabled to prevent overlap
+  p.mat       = sepr_p,
+  sig.level   = 0.05,
+  insig       = "label_sig",
+  col         = colorRampPalette(c("#2166AC", "white", "#B2182B"))(200),
+  title       = "SEPR x Demographics (Spearman, stars = p < .05)",
+  mar         = c(0, 0, 2, 0)
+)
+
+# 2. Add coefficients manually with an offset
+n_sepr <- ncol(sepr_demo_cor$r)
+for (i in 1:(n_sepr-1)) {
+  for (j in (i+1):n_sepr) {
+    text(x = j, 
+         y = n_sepr - i + 1, 
+         labels = sprintf("%.2f", sepr_demo_cor$r[i, j]), 
+         pos = 1,      # Places text BELOW the center/star
+         offset = 0.7, # Adjust as needed
+         cex = 0.6, 
+         col = "black")
+  }
+}
+```
+
+---
+
+# Session Info
+
+```{r session-info}
+sessionInfo()
+```
