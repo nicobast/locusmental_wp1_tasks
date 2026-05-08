@@ -305,69 +305,83 @@ fun_merge_all_ids <- function(et_data, trial_data) {
 }
 
 
-#   2.4) Function for Labeling Trial Phases ----
+# Merge function for global baselines
 
-# label_phases_list <- function(df_list) {
-#   # Apply the labeling function to each data frame in the list
-#   df_list <- lapply(df_list, function(df) {
-#     df <- df %>%
-#       group_by(id, Condition, Trial.Number) %>%
-#       mutate(
-#         
-#         trial_phase = case_when(
-#           logged_time < start_timestamp_0 ~ "ISI",
-#           Condition %in% c("RAND20-REG1", "RAND20-REG10", "REG10-RAND20") &
-#             !is.na(transition_timestamp_1) &
-#             logged_time >= start_timestamp_0 & logged_time < transition_timestamp_1 ~ "Sequence Part 1",
-#           Condition %in% c("RAND20-REG1", "RAND20-REG10", "REG10-RAND20") &
-#             !is.na(transition_timestamp_1) &
-#             logged_time >= transition_timestamp_1 & logged_time < end_timestamp_2 ~ "Sequence Part 2",
-#           Condition %in% c("REG10", "RAND20") &
-#             logged_time >= start_timestamp_0 & logged_time < end_timestamp_2 ~ "Sequence",
-#           # Labeling phases based on timestamps
-#           Condition == "BASELINE"~ NA_character_,
-#           TRUE ~ NA_character_
-#         )
-#       ) %>%
-#       # Explicitly filter out NAs for calculations of min/max
-#       mutate(
-#         # Start and End of "Sequence"
-#         trial_phase = ifelse(
-#           logged_time == min(logged_time[!is.na(logged_time) & trial_phase == "Sequence"], na.rm = TRUE),
-#           "Start of Sequence", trial_phase),
-#         trial_phase = ifelse(
-#           logged_time == max(logged_time[!is.na(logged_time) & trial_phase == "Sequence"], na.rm = TRUE),
-#           "End of Sequence", trial_phase),
-#         
-#         # Start and End of "Sequence Part 1"
-#         trial_phase = ifelse(
-#           logged_time == min(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 1"], na.rm = TRUE),
-#           "Start of Sequence Part 1", trial_phase),
-#         trial_phase = ifelse(
-#           logged_time == max(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 1"], na.rm = TRUE),
-#           "End of Sequence Part 1", trial_phase),
-#         
-#         # Start and End of "Sequence Part 2"
-#         trial_phase = ifelse(
-#           logged_time == min(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 2"], na.rm = TRUE),
-#           "Start of Sequence Part 2", trial_phase),
-#         trial_phase = ifelse(
-#           logged_time == max(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 2"], na.rm = TRUE),
-#           "End of Sequence Part 2", trial_phase),
-#         
-#         # Insert "Transition" between last Sequence Part 1 and first Sequence Part 2
-#         trial_phase = ifelse(
-#           logged_time == max(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 1"], na.rm = TRUE) |
-#             logged_time == min(logged_time[!is.na(logged_time) & trial_phase == "Sequence Part 2"], na.rm = TRUE),
-#           "Transition", trial_phase)
-#       ) %>%
-#       ungroup()
-#     
-#     return(df)
-#   })
-#   
-#   return(df_list)
-# }
+fun_merge_all_ids_baseline <- function(et_data, trial_data) {
+  
+  start_ts <- trial_data$baseline_fixation_start_timestamp
+  end_ts <- trial_data$baseline_fixation_end_timestamp
+  
+  et_ts <- et_data$logged_time
+  
+  split_trial_data <- split(
+    trial_data,
+    seq(nrow(trial_data))
+  )
+  
+  fun_merge_data <- function(
+    ts_1,
+    ts_2,
+    trial_data_splitted,
+    et_ts
+  ) {
+    
+    matched_time <- which(
+      et_ts >= ts_1 &
+        et_ts < ts_2
+    )
+    
+    # skip empty trials
+    if(length(matched_time) == 0) {
+      return(NULL)
+    }
+    
+    selected_et_data <- et_data[
+      matched_time,
+    ]
+    
+    repeated_trial_data <- data.frame(
+      sapply(
+        trial_data_splitted,
+        function(x) {
+          rep(x, length(matched_time))
+        },
+        simplify = FALSE
+      )
+    )
+    
+    merged_data <- data.frame(
+      repeated_trial_data,
+      selected_et_data,
+      ts_1 = ts_1,
+      ts_2 = ts_2
+    )
+    
+    return(merged_data)
+  }
+  
+  print(
+    paste0(
+      "baseline merge: ",
+      unique(trial_data$id)
+    )
+  )
+  
+  df_one_id <- mapply(
+    fun_merge_data,
+    ts_1 = start_ts,
+    ts_2 = end_ts,
+    trial_data_splitted = split_trial_data,
+    MoreArgs = list(et_ts = et_ts),
+    SIMPLIFY = FALSE
+  )
+  
+  df_one_id <- dplyr::bind_rows(df_one_id)
+  
+  return(df_one_id)
+}
+
+#   2.4) Function for Labeling Trial Phases ----
 
 label_phases_list <- function(df_list) {
   df_list <- lapply(df_list, function(df) {
@@ -466,7 +480,6 @@ list_split_trial <- pblapply(
   right_diameter_name = 'right_pupil_measure1',
   timestamp_name = 'ts_trial')
 
-
 # Merge all trial-level data into one dataframe
 df <- dplyr::bind_rows(list_split_trial)
 
@@ -496,70 +509,6 @@ df <- df %>%
     )
   )
 
-
-# ggplot(df, aes(x = ts_sequence, y = pd, fill = Condition)) +
-#   geom_smooth() +
-#   theme_minimal() +
-#   xlim(0,6)
-# 
-# # convert transition timestamp to numeric for further calculations
-# df$transition_timestamp_1 <- as.numeric(df$transition_timestamp_1)
-# 
-# 
-# df<- df %>%
-#   mutate(
-#     # Define event time in seconds
-#     event_time = case_when(
-#       condition_type == "transition" ~ transition_timestamp_1 - start_timestamp_0,
-#       condition_type == "control" ~ 3,
-#       TRUE ~ NA_real_
-#     ),
-#     
-#     # Relative time to event
-#     rel_time = ts_sequence - event_time
-#   )
-# 
-# df_bps<- df%>%
-#   filter(rel_time >= -0.25 & rel_time <= 0) %>%
-#   group_by(id, Condition, Trial.Number) %>%
-#   summarise(
-#     BPS_start = mean(pd, na.rm = TRUE),
-#     .groups = "drop"
-#   )
-# 
-# df <- df%>%
-#   left_join(df_bps,
-#             by = c("id", "Condition", "Trial.Number"))
-# 
-# df <- df %>%
-#   mutate(
-#     pd_corr = pd - BPS_start
-#   )
-# 
-# df_sepr<- df %>%
-#   filter(rel_time >= 0.500 & rel_time <= 2) %>%
-#   group_by(id, Condition, Trial.Number) %>%
-#   summarise(
-#     SEPR = mean(pd, na.rm = TRUE),
-#     .groups = "drop"
-#   )
-# 
-# df_sepr <- df_sepr %>%
-#   mutate(SEPR_z = as.numeric(scale(SEPR)))
-# 
-# hist(df_sepr$SEPR_z)
-# 
-# df_sepr$id <- as.factor(df_sepr$id)
-# 
-# model1 <- lmer(SEPR_z ~ Condition +
-#                  (1 | id),
-#                data = df_sepr)
-# anova(model1)
-# 
-# emmeans(model1, pairwise~Condition, adjust ="tukey")
-# 
-# summary(model1)
-
 # Save as RDS (preserves R attributes)
 saveRDS(
   df_trial,
@@ -570,3 +519,73 @@ saveRDS(
   file = paste0(datapath_et,  "_rss.rds")
 )
 
+
+# Global Baseline preprocessing
+baseline_df_list <- pbmapply(
+  fun_merge_all_ids_baseline,
+  et_data = list_et_data,
+  trial_data = list_trial_data,
+  SIMPLIFY = FALSE
+)
+
+# remove empty participants
+baseline_df_list <- baseline_df_list[
+  sapply(
+    baseline_df_list,
+    function(x) length(x) != 0
+  )
+]
+
+# split into trials
+baseline_list_split_trial <- pblapply(
+  baseline_df_list,
+  function(x) {
+    split(x, x$Trial.Number)
+  }
+)
+
+baseline_list_split_trial <- unlist(
+  baseline_list_split_trial,
+  recursive = FALSE
+)
+
+# add baseline relative timestamps
+baseline_list_split_trial <- pblapply(
+  baseline_list_split_trial,
+  function(x) {
+    
+    x$ts_baseline <- (
+      x$logged_time -
+        x$baseline_fixation_start_timestamp
+    )
+    
+    return(x)
+  }
+)
+
+# run pupil preprocessing on baseline
+baseline_list_split_trial <- pblapply(
+  baseline_list_split_trial,
+  pupil_preprocessing,
+  sampling_rate = 60,
+  provide_variable_names = TRUE,
+  left_diameter_name = "left_pupil_measure1",
+  right_diameter_name = "right_pupil_measure1",
+  timestamp_name = "ts_baseline"
+)
+
+# merge global baselines into data frame
+global_baseline_df <- dplyr::bind_rows(
+  baseline_list_split_trial
+)
+
+global_baseline_means<- global_baseline_df %>%
+  group_by(id) %>%
+  summarize(gbm_rss = mean(pd, na.rm = TRUE)) %>%
+  ungroup()
+
+# save global baselines
+saveRDS(
+  global_baseline_means,
+  file = paste0(datapath_et,  "global_means_rss.rds")
+)

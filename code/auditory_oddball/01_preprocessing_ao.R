@@ -361,6 +361,13 @@ ggplot(global_baseline_means, aes(x = "", y = baseline_mean)) +
        y = "Mean PD (mm)") +
   theme_minimal()
 
+#save global baseline means
+saveRDS(
+  global_baseline_means,
+  file = paste0(datapath_et,  "_global_means_ao.rds")
+)
+
+
 # 4) Pupil Response Estimation----
 
 #   4.1) Trial filtering and setup----

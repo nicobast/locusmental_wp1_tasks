@@ -81,6 +81,7 @@ datapath_trial <- paste0(home_path, data_path_trial)
 # List all .hdf and .csv files
 data_files_et <- list.files(path = datapath_et, full.names = TRUE)
 data_files_trial <- list.files(path = datapath_trial, full.names = TRUE)
+
 # 1) Loading Data----
 
 #   1.1) Load Eye Tracking Data----
@@ -260,11 +261,25 @@ fun_merge_all_ids <- function(et_data, trial_data) {
 
 #   3.1) Trial data and eye tracking data reshaping ----
 
-# Combine trial data
-# Merge all trial-level data (from list of dataframes) into one dataframe
-# Input:  list_trial_data (list of trial metadata per participant)
-# Output: df_trial (single combined dataframe)
-df_trial <- plyr::rbind.fill(list_trial_data)
+# Create a trial type variable
+list_trial_data <- lapply(list_trial_data, function(trial) {
+  trial$trial_type <- ifelse(trial$auditory_cue, "cued", "standard")
+  return(trial)
+})
+
+# Assign trial_type based on baseline fixation_start_timestamp
+list_trial_data <- lapply(list_trial_data, function(trial) {
+  trial$trial_type <- ifelse(!is.na(trial$baseline_fixation_start_timestamp),
+                             "baseline",                       # if baseline timestamp exists
+                             ifelse(trial$auditory_cue, "cued", "standard"))  # otherwise cued/standard
+  trial$trial_number <- ifelse(
+    trial$trial_type == "baseline",
+    999,
+    trial$trial_number
+  )
+  return(trial)
+})
+
 
 # For each participant, merge raw eye-tracking samples with their corresponding trial events
 # Uses fun_merge_all_ids() to handle time-window matching
@@ -273,25 +288,11 @@ df_trial <- plyr::rbind.fill(list_trial_data)
 df_list <- pbmapply(
   fun_merge_all_ids,
   et_data = list_et_data,
-  trial_data = list_trial_data, SIMPLIFY = FALSE)
+  trial_data = list_trial_data, 
+  SIMPLIFY = FALSE)
 
 # Cleanup: Remove empty list elements (participants with no matched data)
 df_list<-df_list[sapply(df_list,function(x){length(x)!=0})]
-
-# Bind trials together to a df
-df <- dplyr::bind_rows(df_list)
-
-# Assign condition variable
-df_list<- lapply(df_list, function(trial) {
-  trial$trial_type <- ifelse(trial$auditory_cue, "cued", "standard")
-  return(trial)
-})
-
-#  Assign trial_number = 999 for baseline trials in df_list
-df_list <- lapply(df_list, function(x) {
-  x$trial_number <- ifelse(x$trial_type == "baseline", 999, x$trial_number)
-  return(x)
-})
 
 # Convert from participant-level to trial-level lists
 # Input:  df_list (participant-level data)
@@ -306,52 +307,55 @@ list_split_trial <- pblapply(list_split_trial, function(x) {
   x$ts_trial <- x$logged_time - x$beep_phase_start_timestamp
   #x$ts_search <- x$logged_time - x$beep_phase_end_timestamp
   x$ts_search <- x$logged_time - x$beep_phase_start_timestamp
+  x$ts_baseline <- x$logged_time- x$baseline_fixation_start_timestamp
   return(x)
 })
 
-# ts_search time from the start of the search phase
-#list_split_trial <- pblapply(list_split_trial, function(x) {
-#  x$ts_search <- x$logged_time - x$beep_phase_end_timestamp
-#  return(x)
-#})
+# Split baseline and task trials
+baseline_trials <- Filter(function(x) {
+  unique(x$trial_type) == "baseline"
+  }, list_split_trial)
+
+
+task_trials <- Filter(function(x) {
+  unique(x$trial_type) != "baseline"
+  }, list_split_trial)
 
 #apply preprocessing for pd based on Pupil_Preprocess package
 list_split_trial <- pblapply(
-  list_split_trial, pupil_preprocessing,
+  task_trials, pupil_preprocessing,
   sampling_rate=60, provide_variable_names = T,
   left_diameter_name = 'left_pupil_measure1',
   right_diameter_name = 'right_pupil_measure1',
   timestamp_name = 'ts_trial')
 
-# Create a trial type variable
-list_trial_data <- lapply(list_trial_data, function(trial) {
-  trial$trial_type <- ifelse(trial$auditory_cue, "cued", "standard")
-  return(trial)
-})
+# apply preprocessing to baseline
+baseline_trials <- pblapply(
+  baseline_trials,
+  pupil_preprocessing,
+  sampling_rate = 60,
+  provide_variable_names = TRUE,
+  left_diameter_name = "left_pupil_measure1",
+  right_diameter_name = "right_pupil_measure1",
+  timestamp_name = "ts_baseline"
+)
 
-# Assign trial_type based on baseline fixation_start_timestamp
-list_trial_data <- lapply(list_trial_data, function(trial) {
-  trial$trial_type <- ifelse(!is.na(trial$baseline_fixation_start_timestamp),
-                             "baseline",                       # if baseline timestamp exists
-                             ifelse(trial$auditory_cue, "cued", "standard"))  # otherwise cued/standard
-  return(trial)
-})
-
-#  Assign trial_number = 999 for baseline trials in list_trial_data
-list_trial_data<- lapply(list_trial_data, function(x) {
-  x$trial_number <- ifelse(x$trial_type == "baseline", 999, x$trial_number)
-  return(x)
-})
-
-#  Assign trial_number = 999 for baseline trials in list_trial_data
-list_trial_data<- lapply(list_trial_data, function(x) {
-  x$trial_number <- ifelse(x$trial_type == "baseline", 999, x$trial_number)
-  return(x)
-})
-
+# merge dataframe
+df <- dplyr::bind_rows(list_split_trial)
 
 # Bind trials together to a df
-df <- dplyr::bind_rows(list_split_trial)
+global_baseline_df <- dplyr::bind_rows(baseline_trials)
+
+global_baseline_means<- global_baseline_df %>%
+  group_by(id) %>%
+  summarize(gbm_rss = mean(pd, na.rm = TRUE)) %>%
+  ungroup()
+
+# save global baselines
+saveRDS(
+  global_baseline_means,
+  file = paste0(datapath_et,  "_global_means_cvs.rds")
+)
 
 #   3.2) Calculate Values for PD Correction ----
 
