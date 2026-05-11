@@ -25,7 +25,8 @@ invisible(lapply(pkgs, library, character.only = TRUE))
 # Paths – adjust to your project folder
 # -----------------------------------------------------------------------------
 #home_path <- "//192.168.88.212/daten/KJP_Studien"
-home_path <- "S:/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/auditory_oddball/"
 demo_path <- "/LOCUS_MENTAL/6_Versuchsdaten/"
 
@@ -208,7 +209,8 @@ model_performance(m_final_full)
 m_3 <- lmer(
   sepr ~ trial * 
     (CBCL_T_INT + CBCL_T_EXT + 
-    CBQ_Kontrollfaehigkeit_Summenwert + CBQ_Negativer_Affekt_Summenwert + CBQ_Offenheit_Summenwert) + 
+    CBQ_Kontrollfaehigkeit_Summenwert + CBQ_Negativer_Affekt_Summenwert + CBQ_Offenheit_Summenwert) +
+    age + sex + IQ_nonverbal_z +
     (1 | id) + (1 |trial_number), 
   data = df_combined, 
   REML = T
@@ -223,6 +225,16 @@ standardize_parameters(m_3)
 ###--> Internalizing associated with larger responses to all stimuli
 ###--> negative affect associated with lower resposnes to all stimuli
 
+m_3 <- lmer(
+  sepr ~ 
+    (CBCL_T_INT + CBCL_T_EXT + 
+       CBQ_Negativer_Affekt_Summenwert ) + 
+    (1 | id) + (1 |trial_number), 
+  data = df_combined[df_combined$trial=='oddball',], 
+  REML = T
+)
+anova(m_3)
+standardize_parameters(m_3)
 
 #split/scale variables
 df_combined$CBCL_T_INT_split<-ifelse(df_combined$CBCL_T_INT>=65,'high','low')

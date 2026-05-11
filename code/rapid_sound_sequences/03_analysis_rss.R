@@ -50,7 +50,8 @@ lapply(pkgs, function(pkg) {
 
 
 # Define paths (adjust to your project)
-home_path <- "S:/KJP_Studien"
+home_path <- "//192.168.88.212/daten/KJP_Studien"
+#home_path <- "S:/KJP_Studien"
 data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/rapid_sound_sequences/"
 demo_data_path <- "/LOCUS_MENTAL/6_Versuchsdaten/"
 #home_path <- "C:/Users/nico/Nextcloud/project_locusmental_wp1"
@@ -187,6 +188,7 @@ anova(m1_3)
 # 5.5 Interaction with initial sequence
 m1_4 <- lmer(SEPR_early_z ~ condition_type * initial_sequence + Trial.Number + (1 | id),
              data = df_sepr)
+
 anova(m1_4)
 
 m_interaction <- lmer(SEPR_early_z ~ condition_type * initial_sequence + 
@@ -263,7 +265,7 @@ cat("N participants after merge:", n_distinct(df_combined$id), "\n")
 
 # --- REG-starting trials with covariates ---
 m_REG <- lmer(
-  SEPR_early_z ~ condition_type + Trial.Number_c + sex + age_s + iq_v_z + iq_nv_z +
+  SEPR_early_z ~ condition_type + Trial.Number_c + sex + age_s + iq_nv_z +
     (1 | id),
   data = df_combined[df_combined$initial_sequence == "REG", ]
 )
@@ -273,7 +275,7 @@ model_performance(m_REG)
 
 # --- RAND-starting trials with covariates ---
 m_RAND <- lmer(
-  SEPR_early_z ~ condition_type + Trial.Number_c + sex + age_s + iq_v_z + iq_nv_z +
+  SEPR_early_z ~ condition_type + Trial.Number_c + sex + age_s + iq_nv_z +
     (1 | id),
   data = df_combined[df_combined$initial_sequence == "RAND", ]
 )
@@ -415,7 +417,29 @@ ggplot(df_plot_long, aes(x = time_seconds, y = PD_Difference, color = Transition
   scale_fill_brewer(palette = "Set1")
 
 ################################################################################
-### 11. AGGREGATE SEPR & BPS PER PERSON FOR CROSS-TASK CORRELATION ------------------
+### 11. MODELS WITH DEMOGRAPHICS ------------------
+################################################################################
+
+# Adding clincial measures
+m_3 <- lmer(
+  SEPR_early_z ~ condition_type * initial_sequence *
+    (CBCL_T_INT + CBCL_T_EXT + ARI_Eltern_Score_total + BIQ_Z_Score + CBQ_Negativer_Affekt_Summenwert) +
+    age + sex + IQ_nonverbal_z +
+    (1 | id) + (1 |Trial.Number), 
+  data = df_combined, 
+  REML = T
+)
+
+anova(m_3)
+emmeans(m_3,revpairwise~ARI_Eltern_Score_total|initial_sequence)
+emtrends(m_3,~initial_sequence,var='ARI_Eltern_Score_total')
+
+
+require(parameters)
+standardize_parameters(m_3)
+
+################################################################################
+### 12. AGGREGATE SEPR & BPS PER PERSON FOR CROSS-TASK CORRELATION ------------------
 ################################################################################
 
 # Aggregate BPS data (Mean of BPS_start_500ms per ID and Condition)
