@@ -208,8 +208,7 @@ model_performance(m_final_full)
 # Adding clincial measures
 m_3 <- lmer(
   sepr ~ trial * 
-    (CBCL_T_INT + CBCL_T_EXT + 
-    CBQ_Kontrollfaehigkeit_Summenwert + CBQ_Negativer_Affekt_Summenwert + CBQ_Offenheit_Summenwert) +
+    (CBCL_T_INT + CBCL_T_EXT + ARI_Eltern_Score_total + BIQ_Z_Score + CBQ_Negativer_Affekt_Summenwert) +
     age + sex + IQ_nonverbal_z +
     (1 | id) + (1 |trial_number), 
   data = df_combined, 
