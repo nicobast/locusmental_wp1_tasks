@@ -1,0 +1,677 @@
+---
+title: "Sample Description"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+   
+  word_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE,   # hide code in output — set to TRUE if you want to show it
+  warning = FALSE,
+  message = FALSE
+)
+options(knitr.table.format = "html")
+```
+
+
+```{r packages, include=FALSE}
+pkgs <- c("readxl", "data.table", "ggplot2", "dplyr",
+          "psych", "lubridate", "tidyr", "knitr", "kableExtra", "ggcorrplot")
+
+installed_packages <- pkgs %in% rownames(installed.packages())
+if (any(!installed_packages)) {
+  install.packages(pkgs[!installed_packages])
+}
+
+lapply(pkgs, function(pkg) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE))
+    message(paste("Package", pkg, "not found."))
+})
+```
+
+
+```{r load-data, include=FALSE}
+data_path <- "S:/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
+load(file.path(data_path, "demo_data.rda"))
+
+# Convert age to months
+data <- data %>%
+  mutate(age_months = round(age * 12, 1))
+```
+
+# Sample Description Table
+```{r compute-all, include=FALSE}
+#sex
+
+data$sex <- factor(data$sex,
+                   levels = c("männlich", "weiblich"),
+                   labels = c("male", "female"))
+
+sex_counts <- table(data$sex)
+
+# Chi-square goodness-of-fit (vs. 50/50)
+chi_sex <- chisq.test(sex_counts)
+
+
+sex_row <- data.frame(
+  Variable = "Sex (female / male)",
+  N        = as.character(sum(!is.na(data$sex))),
+  M        = paste0(sex_counts[["female"]], " / ", sex_counts[["male"]]),
+  SD       = paste0("(", round(sex_counts[["female"]] / sum(sex_counts) * 100, 1),
+                    "% / ",
+                    round(sex_counts[["male"]]   / sum(sex_counts) * 100, 1), "%)"),
+  Min      = "—",
+  Max      = "—",
+  `SW W`   = paste0("\u03c7\u00b2(1) = ", round(chi_sex$statistic, 2)),
+  `SW p`   = as.character(round(chi_sex$p.value, 3)),
+  check.names = FALSE
+) %>%
+  mutate(across(everything(), as.character))
+
+
+# continuous varibales
+cont_vars <- c(
+  "age_months", "IQ_verbal", "IQ_nonverbal",
+  "CBCL_T_INT", "CBCL_T_EXT", "CBCL_T_GES",
+  "ARI_Eltern_Score_total", "BIQ_Z_Score",
+  "CBQ_Offenheit_Summenwert", "CBQ_Negativer_Affekt_Summenwert",
+  "CBQ_Kontrollfaehigkeit_Summenwert", "CBQ_Ges_Summenwert",
+  "F_SozU_Score", "ACE_Score_total"
+)
+
+desc_table <- data %>%
+  select(all_of(cont_vars)) %>%
+  summarise(across(
+    everything(),
+    list(
+      N   = ~ sum(!is.na(.)),
+      M   = ~ round(mean(., na.rm = TRUE), 2),
+      SD  = ~ round(sd(.,   na.rm = TRUE), 2),
+      Min = ~ round(min(.,  na.rm = TRUE), 2),
+      Max = ~ round(max(.,  na.rm = TRUE), 2)
+    ),
+    .names = "{.col}__{.fn}"
+  )) %>%
+  pivot_longer(everything(), names_to = c("Variable", "Stat"), names_sep = "__") %>%
+  pivot_wider(names_from = Stat, values_from = value)
+
+
+# 3. Normality (Shapiro-Wilk)
+
+sw_results <- data %>%
+  select(all_of(cont_vars)) %>%
+  summarise(across(
+    everything(),
+    list(
+      W = ~ tryCatch(round(shapiro.test(na.omit(.))$statistic, 3),
+                     error = function(e) NA_real_),
+      p = ~ tryCatch(round(shapiro.test(na.omit(.))$p.value,   3),
+                     error = function(e) NA_real_)
+    ),
+    .names = "{.col}__{.fn}"
+  )) %>%
+  pivot_longer(everything(), names_to = c("Variable", "Stat"), names_sep = "__") %>%
+  pivot_wider(names_from = Stat, values_from = value) %>%
+  mutate(Normal = case_when(
+    is.na(p) ~ "-",
+    p >= .05 ~ "yes",
+    TRUE     ~ "no"
+  ))
+
+sw_results <- sw_results %>%
+  mutate(p = ifelse(p == 0, "< .001", as.character(p)))
+
+
+# Final Table
+
+var_labels <- c(
+  "age_months"                        = "Age (months)",
+  "IQ_verbal"                         = "IQ Verbal",
+  "IQ_nonverbal"                      = "IQ Nonverbal",
+  "CBCL_T_INT"                        = "CBCL Internalizing (T)",
+  "CBCL_T_EXT"                        = "CBCL Externalizing (T)",
+  "CBCL_T_GES"                        = "CBCL Total (T)",
+  "ARI_Eltern_Score_total"            = "ARI Parent Total",
+  "BIQ_Z_Score"                       = "BIQ Z-Score",
+  "CBQ_Offenheit_Summenwert"          = "CBQ Openness",
+  "CBQ_Negativer_Affekt_Summenwert"   = "CBQ Negative Affect",
+  "CBQ_Kontrollfaehigkeit_Summenwert" = "CBQ Effortful Control",
+  "CBQ_Ges_Summenwert"                = "CBQ Total",
+  "F_SozU_Score"                      = "F-SozU Social Support",
+  "ACE_Score_total"                   = "ACE Total Score"
+)
+
+final_table <- desc_table %>%
+  left_join(sw_results %>% select(Variable, W, p), by = "Variable") %>%
+  mutate(Variable = recode(Variable, !!!var_labels)) %>%
+  rename("SW W" = W, "SW p" = p) %>%
+  mutate(across(everything(), as.character))
+
+final_table_full <- bind_rows(sex_row, final_table)
+```
+
+```{r final-table}
+kable(final_table_full,
+      align   = "lrrrrrrr",
+      caption = "Table 1. Sample Description") %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    full_width        = FALSE
+  ) %>%
+  pack_rows("Demographics & Cognition", 1, 4) %>%
+  pack_rows("CBCL",                     5, 7) %>%
+  pack_rows("Questionnaires",           8, 15) %>%
+  footnote(general = paste0(
+    "For Sex: M = N female / N male; SD = (% female / % male); ",
+    "SW W = \u03c7\u00b2(1) goodness-of-fit test against equal distribution. ",
+    "For continuous variables: SW W and SW p refer to the Shapiro-Wilk normality test."
+  ))
+```
+
+# Figures
+
+```{r plot-theme, include=FALSE}
+# Shared clean theme for all plots
+theme_desc <- theme_minimal(base_size = 12) +
+  theme(
+    plot.title   = element_text(face = "bold", size = 12),
+    axis.title   = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+
+## Sex Distribution
+
+```{r plot-sex, fig.width=4, fig.height=4}
+data %>%
+  count(sex) %>%
+  mutate(pct = round(n / sum(n) * 100, 1),
+         label = paste0(n, "\n(", pct, "%)")) %>%
+  ggplot(aes(x = sex, y = n, fill = sex)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = label), vjust = -0.3, size = 3.5) +
+  scale_fill_manual(values = c("female" = "#5B8DB8", "male" = "#E08B5D")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(title = "Figure 1. Sex Distribution",
+       x = NULL, y = "Count") +
+  theme_desc
+```
+
+## Age Distribution
+
+```{r plot-age, fig.width=5, fig.height=4}
+ggplot(data, aes(x = age_months)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 binwidth = 6, fill = "#5B8DB8", color = "white", alpha = 0.8) +
+  stat_function(fun  = dnorm,
+                args = list(mean = mean(data$age_months, na.rm = TRUE),
+                            sd   = sd(data$age_months,   na.rm = TRUE)),
+                color = "#E08B5D", linewidth = 1) +
+  labs(title = "Figure 2. Age Distribution",
+       x = "Age (months)", y = "Density") +
+  theme_desc
+```
+
+## IQ Scores
+
+```{r plot-iq, fig.width=5, fig.height=4}
+data %>%
+  select(IQ_verbal, IQ_nonverbal) %>%
+  pivot_longer(everything(),
+               names_to  = "Scale",
+               values_to = "Score") %>%
+  mutate(Scale = recode(Scale,
+    "IQ_verbal"    = "Verbal",
+    "IQ_nonverbal" = "Nonverbal")) %>%
+  ggplot(aes(x = Score, fill = Scale, color = Scale)) +
+  geom_density(alpha = 0.35, linewidth = 0.8) +
+  scale_fill_manual(values  = c("Verbal" = "#5B8DB8", "Nonverbal" = "#E08B5D")) +
+  scale_color_manual(values = c("Verbal" = "#5B8DB8", "Nonverbal" = "#E08B5D")) +
+  labs(title = "Figure 3. IQ Score Distributions",
+       x = "Raw Score", y = "Density", fill = NULL, color = NULL) +
+  theme_desc +
+  theme(legend.position = "bottom")
+```
+```{r plot-cbcl, fig.width=6, fig.height=4}
+data %>%
+  select(CBCL_T_INT, CBCL_T_EXT, CBCL_T_GES) %>%
+  pivot_longer(everything(),
+               names_to  = "Scale",
+               values_to = "T_Score") %>%
+  mutate(Scale = recode(Scale,
+    "CBCL_T_INT" = "Internalizing",
+    "CBCL_T_EXT" = "Externalizing",
+    "CBCL_T_GES" = "Total")) %>%
+  ggplot(aes(x = Scale, y = T_Score, fill = Scale)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21,
+               outlier.fill = "white", show.legend = FALSE) +
+  geom_hline(yintercept = 65, linetype = "dashed",
+             color = "grey40", linewidth = 0.5) +      # clinical cutoff T ≥ 60
+  annotate("text", x = 0.55, y = 61.5,
+           label = "T = 65", size = 3, color = "grey40") +
+  scale_fill_manual(values = c(
+    "Internalizing" = "#5B8DB8",
+    "Externalizing" = "#E08B5D",
+    "Total"         = "#6DBF8B")) +
+  labs(title = "Figure 4. CBCL T-Score Distributions",
+       x = NULL, y = "T-Score") +
+  theme_desc
+```
+
+## CBCL Clinical Symptoms (T ≥ 65)
+
+```{r cbcl-combined, fig.width=6, fig.height=5}
+library(ggVennDiagram)
+
+cutoff <- 65
+
+# ── Flag participants ──────────────────────────────────────────────────────────
+cbcl_flags <- data %>%
+  select(ID, CBCL_T_INT, CBCL_T_EXT, CBCL_T_GES) %>%
+  filter(!is.na(CBCL_T_INT) & !is.na(CBCL_T_EXT)) %>%
+  mutate(
+    clinical_INT = CBCL_T_INT >= cutoff,
+    clinical_EXT = CBCL_T_EXT >= cutoff,
+    clinical_GES = CBCL_T_GES >= cutoff
+  )
+
+# ── Per-scale summary ──────────────────────────────────────────────────────────
+scale_summary <- cbcl_flags %>%
+  summarise(
+    across(c(clinical_INT, clinical_EXT, clinical_GES),
+           list(n   = ~ sum(.),
+                pct = ~ round(mean(.) * 100, 1)))
+  ) %>%
+  pivot_longer(everything(),
+               names_to  = c("Scale", "Stat"),
+               names_sep = "_(?=[^_]+$)") %>%   # split on last underscore
+  pivot_wider(names_from = Stat, values_from = value) %>%
+  mutate(
+    Scale = recode(Scale,
+      "clinical_INT" = "Internalizing (T ≥ 65)",
+      "clinical_EXT" = "Externalizing (T ≥ 65)",
+      "clinical_GES" = "Total Problems (T ≥ 65)"),
+    N_total = nrow(cbcl_flags)
+  ) %>%
+  select(Group = Scale, `N clinical` = n, `N total` = N_total, `%` = pct)
+
+# ── Mutually exclusive groups ──────────────────────────────────────────────────
+overlap_summary <- cbcl_flags %>%
+  mutate(Group = case_when(
+    clinical_INT &  clinical_EXT ~ "Both INT & EXT",
+    clinical_INT & !clinical_EXT ~ "INT only",
+   !clinical_INT &  clinical_EXT ~ "EXT only",
+    TRUE                          ~ "Neither"
+  )) %>%
+  count(Group) %>%
+  mutate(
+    `N total`    = nrow(cbcl_flags),
+    `%`          = round(n / nrow(cbcl_flags) * 100, 1),
+    `N clinical` = n
+  ) %>%
+  arrange(match(Group, c("Both INT & EXT", "INT only", "EXT only", "Neither"))) %>%
+  select(Group, `N clinical`, `N total`, `%`)
+```
+
+```{r combined-table}
+# ── One combined table ─────────────────────────────────────────────────────────
+combined_table <- bind_rows(scale_summary, overlap_summary)
+
+kable(combined_table,
+      align   = "lrrr",
+      caption = "Table 2. CBCL Clinically Relevant Symptoms (T ≥ 65)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = FALSE) %>%
+  pack_rows("By Scale",            1, 3) %>%
+  pack_rows("Symptom Profile",     4, 7) %>%
+  footnote(general = paste0(
+    "T ≥ 65 = borderline clinical cutoff. ",
+    "Symptom Profile shows mutually exclusive groups based on ",
+    "Internalizing (INT) and Externalizing (EXT) scores. ",
+    "Total Problems is reported separately as it is a composite scale."
+  ))
+```
+
+```{r figure5, fig.width=6, fig.height=5}
+# ── Figure 5: Stacked bar — clinical vs subclinical ───────────────────────────
+scale_summary %>%
+  mutate(pct_sub = 100 - `%`,
+         Group   = factor(Group, levels = c(
+           "Internalizing (T ≥ 65)",
+           "Externalizing (T ≥ 65)",
+           "Total Problems (T ≥ 65)"))) %>%
+  pivot_longer(cols      = c(`%`, pct_sub),
+               names_to  = "Clinical",
+               values_to = "Percent") %>%
+  mutate(Clinical = recode(Clinical,
+    "%"       = "Clinical (T \u2265 65)",
+    "pct_sub" = "Subclinical (T < 65)"),
+    Clinical = factor(Clinical,
+      levels = c("Subclinical (T < 65)", "Clinical (T \u2265 65)"))) %>%
+  ggplot(aes(x = Group, y = Percent, fill = Clinical)) +
+  geom_col(width = 0.55) +
+  geom_text(aes(label = paste0(Percent, "%")),
+            position = position_stack(vjust = 0.5),
+            size = 3.5, color = "white", fontface = "bold") +
+  scale_fill_manual(values = c(
+    "Subclinical (T < 65)"   = "#A8C8E8",
+    "Clinical (T \u2265 65)" = "#C0392B")) +
+  scale_x_discrete(labels = c(
+    "Internalizing (T ≥ 65)" = "Internalizing",
+    "Externalizing (T ≥ 65)" = "Externalizing",
+    "Total Problems (T ≥ 65)"= "Total")) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"),
+                     expand = expansion(mult = c(0, 0.05))) +
+  labs(title    = "Figure 5. CBCL Clinically Relevant Symptoms (T \u2265 65)",
+       subtitle = paste0("N = ", nrow(cbcl_flags)),
+       x = NULL, y = "Percentage of Participants", fill = NULL) +
+  theme_desc +
+  theme(legend.position = "bottom")
+```
+
+```{r figure6, fig.width=6, fig.height=4.5}
+# ── Figure 6: Mutually exclusive symptom profiles ─────────────────────────────
+overlap_summary %>%
+  mutate(Group = factor(Group,
+    levels = c("Both INT & EXT", "INT only", "EXT only", "Neither"))) %>%
+  ggplot(aes(x = Group, y = `%`, fill = Group)) +
+  geom_col(width = 0.55, show.legend = FALSE) +
+  geom_text(aes(label = paste0(`N clinical`, "\n(", `%`, "%)")),
+            vjust = -0.3, size = 3.5, fontface = "bold") +
+  scale_fill_manual(values = c(
+    "Both INT & EXT" = "#C0392B",
+    "INT only"       = "#E08B5D",
+    "EXT only"       = "#5B8DB8",
+    "Neither"        = "#A8C8E8")) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"),
+                     expand = expansion(mult = c(0, 0.2))) +
+  labs(title    = "Figure 6. Mutually Exclusive CBCL Symptom Profiles (T \u2265 65)",
+       subtitle = paste0("N = ", nrow(cbcl_flags)),
+       x = NULL, y = "% of Participants") +
+  theme_desc
+```
+
+## Additional Variable Distributions
+
+```{r plot-ari, fig.width=5, fig.height=4}
+# ── ARI: cutoff ≥ 4 ───────────────────────────────────────────────────────────
+ari_cutoff  <- 4
+n_ari_valid <- sum(!is.na(data$ARI_Eltern_Score_total))
+n_ari_atrisk <- sum(data$ARI_Eltern_Score_total >= ari_cutoff, na.rm = TRUE)  
+pct_ari_atrisk <- round(n_ari_atrisk / n_ari_valid * 100, 1)
+
+data %>%
+  filter(!is.na(ARI_Eltern_Score_total)) %>%
+  count(ARI_Eltern_Score_total) %>%
+  mutate(elevated = ARI_Eltern_Score_total >= ari_cutoff) %>%  # >= here
+  ggplot(aes(x = factor(ARI_Eltern_Score_total), y = n, fill = elevated)) +
+  geom_col(color = "white", alpha = 0.85, width = 0.7, show.legend = TRUE) +
+  geom_vline(xintercept = ari_cutoff + 0.5,         # line now sits before 4
+             linetype = "dashed", color = "#C0392B", linewidth = 0.8) +
+  annotate("text", x = ari_cutoff + 0.2, y = Inf,
+           label = paste0("At-risk\n(n = ", n_ari_atrisk, ")"),
+           vjust = 1.5, hjust = 0, size = 3, color = "#C0392B") +
+  scale_fill_manual(
+    values = c("FALSE" = "#5B8DB8", "TRUE" = "#C0392B"),
+    labels = c("FALSE" = paste0("Not elevated (< ",   ari_cutoff, ")"),
+               "TRUE"  = paste0("Elevated (\u2265 ",  ari_cutoff, ")"))  # >= here
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  labs(
+    title    = "Figure 8. ARI Parent Total Score",
+    subtitle = paste0("N = ", n_ari_valid,
+                      " | At-risk (\u2265 ", ari_cutoff, "): n = ", n_ari_atrisk,
+                      " (", pct_ari_atrisk, "%)"),
+    x    = "ARI Total Score",
+    y    = "Count",
+    fill = NULL
+  ) +
+  theme_desc +
+  theme(legend.position = "bottom")
+```
+
+```{r plot-biq, fig.width=5, fig.height=4}
+# ── BIQ: cutoff ≥ 2 ───────────────────────────────────────────────────────────
+biq_cutoff   <- 2
+n_biq_valid  <- sum(!is.na(data$BIQ_Z_Score))
+n_biq_atrisk <- sum(data$BIQ_Z_Score >= biq_cutoff, na.rm = TRUE)
+pct_biq_atrisk <- round(n_biq_atrisk / n_biq_valid * 100, 1)
+
+ggplot(data, aes(x = BIQ_Z_Score)) +
+  geom_histogram(aes(y = after_stat(density), fill = after_stat(x) >= biq_cutoff),
+                 binwidth = 0.3, color = "white", alpha = 0.85) +
+  stat_function(fun  = dnorm,
+                args = list(mean = mean(data$BIQ_Z_Score, na.rm = TRUE),
+                            sd   = sd(data$BIQ_Z_Score,   na.rm = TRUE)),
+                color = "#E08B5D", linewidth = 1) +
+  geom_vline(xintercept = biq_cutoff,
+             linetype = "dashed", color = "#C0392B", linewidth = 0.8) +
+  annotate("text", x = biq_cutoff + 0.05, y = Inf,
+           label = paste0("At-risk\n(n = ", n_biq_atrisk, ")"),
+           vjust = 1.5, hjust = 0, size = 3, color = "#C0392B") +
+  scale_fill_manual(
+    values = c("FALSE" = "#5B8DB8", "TRUE" = "#C0392B"),
+    labels = c("FALSE" = paste0("Not elevated (< ",  biq_cutoff, ")"),
+               "TRUE"  = paste0("Elevated (\u2265 ", biq_cutoff, ")"))
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  labs(
+    title    = "Figure 9. BIQ Z-Score Distribution",
+    subtitle = paste0("N = ", n_biq_valid,
+                      " | At-risk (\u2265 ", biq_cutoff, "): n = ", n_biq_atrisk,
+                      " (", pct_biq_atrisk, "%)"),
+    x    = "BIQ Z-Score",
+    y    = "Density",
+    fill = NULL
+  ) +
+  theme_desc +
+  theme(legend.position = "bottom")
+```
+
+```{r plot-cbq, fig.width=8, fig.height=6}
+# ── CBQ subscales — faceted ────────────────────────────────────────────────────
+data %>%
+  select(CBQ_Offenheit_Summenwert, CBQ_Negativer_Affekt_Summenwert,
+         CBQ_Kontrollfaehigkeit_Summenwert, CBQ_Ges_Summenwert) %>%
+  pivot_longer(everything(), names_to = "Scale", values_to = "Score") %>%
+  mutate(Scale = recode(Scale,
+    "CBQ_Offenheit_Summenwert"          = "Openness",
+    "CBQ_Negativer_Affekt_Summenwert"   = "Negative Affect",
+    "CBQ_Kontrollfaehigkeit_Summenwert" = "Effortful Control",
+    "CBQ_Ges_Summenwert"                = "Total")) %>%
+  group_by(Scale) %>%
+  mutate(m  = mean(Score, na.rm = TRUE),
+         sd = sd(Score,   na.rm = TRUE)) %>%
+  ungroup() %>%
+  ggplot(aes(x = Score)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 binwidth = 5, fill = "#5B8DB8",
+                 color = "white", alpha = 0.85) +
+  stat_function(
+    fun  = dnorm,
+    aes(color = "Normal curve"),
+    args = function(x) list(
+      mean = mean(x$Score, na.rm = TRUE),
+      sd   = sd(x$Score,   na.rm = TRUE)
+    ),
+    linewidth = 0.8
+  ) +
+  # Add M ± SD as subtitle per facet via geom_text
+  geom_text(
+    data = . %>%
+      group_by(Scale) %>%
+      summarise(m = mean(Score, na.rm=TRUE),
+                sd = sd(Score, na.rm=TRUE),
+                .groups = "drop") %>%
+      mutate(label = paste0("M = ", round(m,1), ", SD = ", round(sd,1)),
+             x = -Inf, y = Inf),
+    aes(x = x, y = y, label = label),
+    hjust = -0.1, vjust = 1.5, size = 3, inherit.aes = FALSE
+  ) +
+  facet_wrap(~ Scale, scales = "free_x", ncol = 2) +
+  scale_color_manual(values = c("Normal curve" = "#E08B5D")) +
+  labs(title = "Figure 9. CBQ Subscale Distributions",
+       x = "Sum Score", y = "Density", color = NULL) +
+  theme_desc +
+  theme(legend.position = "bottom",
+        strip.text = element_text(face = "bold"))
+```
+
+```{r plot-fsozu, fig.width=5, fig.height=4}
+# ── F-SozU ─────────────────────────────────────────────────────────────────────
+ggplot(data, aes(x = F_SozU_Score)) +
+  geom_histogram(binwidth = 2, fill = "#5B8DB8",
+                 color = "white", alpha = 0.85) +
+  labs(title    = "Figure 10. F-SozU Social Support Score",
+       subtitle = paste0("M = ", round(mean(data$F_SozU_Score, na.rm=TRUE), 2),
+                         ", SD = ", round(sd(data$F_SozU_Score, na.rm=TRUE), 2)),
+       x = "F-SozU Score", y = "Count") +
+  theme_desc
+```
+
+```{r plot-ace, fig.width=5, fig.height=4}
+# ── ACE — bar chart (discrete count 0–10) ─────────────────────────────────────
+data %>%
+  filter(!is.na(ACE_Score_total)) %>%
+  count(ACE_Score_total) %>%
+  mutate(pct = round(n / sum(n) * 100, 1)) %>%
+  ggplot(aes(x = factor(ACE_Score_total), y = n)) +
+  geom_col(fill = "#5B8DB8", color = "white", alpha = 0.85, width = 0.7) +
+  geom_text(aes(label = paste0(n, "\n(", pct, "%)")),
+            vjust = -0.3, size = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  labs(title    = "Figure 11. ACE Total Score Distribution",
+       subtitle = paste0("N = ", sum(!is.na(data$ACE_Score_total)),
+                         " | M = ", round(mean(data$ACE_Score_total, na.rm=TRUE), 2),
+                         ", SD = ", round(sd(data$ACE_Score_total, na.rm=TRUE), 2)),
+       x = "Number of Adverse Childhood Experiences", y = "Count") +
+  theme_desc
+```
+
+## Correlation Matrix
+```{r analysis-vars, include=FALSE}
+# ── Variable selection ─────────────────────────────────────────────────────────
+# Note: CBCL_T_GES excluded from regression (composite of INT + EXT → multicollinearity)
+# but kept in correlation matrix for completeness
+
+all_vars <- c(
+  "age_months", "IQ_verbal", "IQ_nonverbal",
+  "CBCL_T_INT", "CBCL_T_EXT", "CBCL_T_GES",
+  "ARI_Eltern_Score_total", "BIQ_Z_Score",
+  "CBQ_Offenheit_Summenwert", "CBQ_Negativer_Affekt_Summenwert",
+  "CBQ_Kontrollfaehigkeit_Summenwert", "CBQ_Ges_Summenwert",
+  "F_SozU_Score", "ACE_Score_total"
+)
+
+# Clean labels for plots
+var_labels_short <- c(
+  "age_months"                        = "Age",
+  "IQ_verbal"                         = "IQ verbal",
+  "IQ_nonverbal"                      = "IQ nonverbal",
+  "CBCL_T_INT"                        = "INT",
+  "CBCL_T_EXT"                        = "EXT",
+  "CBCL_T_GES"                        = "Total",
+  "ARI_Eltern_Score_total"            = "ARI",
+  "BIQ_Z_Score"                       = "BIQ",
+  "CBQ_Offenheit_Summenwert"          = "CBQ Open.",
+  "CBQ_Negativer_Affekt_Summenwert"   = "CBQ Neg. Aff.",
+  "CBQ_Kontrollfaehigkeit_Summenwert" = "CBQ Eff. Ctrl.",
+  "CBQ_Ges_Summenwert"                = "CBQ Total",
+  "F_SozU_Score"                      = "F-SozU",
+  "ACE_Score_total"                   = "ACE"
+)
+
+# Keep original names — used for regression
+analysis_data <- data %>% select(all_of(all_vars))
+
+# Renamed version — used only for correlation matrix display
+analysis_data_display <- analysis_data
+names(analysis_data_display) <- var_labels_short[names(analysis_data_display)]
+```
+```{r corr-matrix, fig.width=9, fig.height=8}
+# ── Spearman correlations (conservative choice given mixed normality) ───────────
+corr_results <- psych::corr.test(
+  analysis_data_display,
+  method = "spearman",
+  adjust = "BH"       # Benjamini-Hochberg correction for multiple comparisons
+)
+
+r_matrix <- corr_results$r
+p_raw    <- corr_results$p
+
+# Extract lower triangle, adjust, then mirror to upper triangle
+p_adjusted <- matrix(NA, nrow = nrow(p_raw), ncol = ncol(p_raw),
+                     dimnames = dimnames(p_raw))
+
+p_vals_adj <- p.adjust(p_raw[lower.tri(p_raw)], method = "BH")
+p_adjusted[lower.tri(p_adjusted)] <- p_vals_adj
+p_adjusted[upper.tri(p_adjusted)] <- t(p_adjusted)[upper.tri(p_adjusted)]
+diag(p_adjusted) <- 0    # diagonal gets 0 so ggcorrplot handles it cleanly
+
+ggcorrplot(
+  r_matrix,
+  type          = "lower",
+  lab           = TRUE,
+  lab_size      = 3,
+  p.mat         = p_adjusted,
+  sig.level     = 0.05,
+  insig         = "blank",
+  colors        = c("#C0392B", "white", "#2E86AB"),
+  outline.color = "white",
+  tl.cex        = 10,
+  tl.srt        = 45
+) +
+  labs(
+    title    = "Figure 15. Spearman Correlation Matrix",
+    subtitle = "Only significant correlations shown (BH-corrected, p < .05)",
+    fill     = "r"
+  ) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 12),
+    plot.subtitle = element_text(size = 10, color = "grey40")
+  )
+```
+```
+
+```{r corr-table}
+# ── Printable correlation table ────────────────────────────────────────────────
+corr_tidy <- as.data.frame(r_matrix) %>%
+  tibble::rownames_to_column("Variable") %>%
+  pivot_longer(-Variable, names_to = "Variable2", values_to = "r") %>%
+  left_join(
+    as.data.frame(p_adjusted) %>%
+      tibble::rownames_to_column("Variable") %>%
+      pivot_longer(-Variable, names_to = "Variable2", values_to = "p_adj"),
+    by = c("Variable", "Variable2")
+  ) %>%
+  filter(Variable != Variable2) %>%
+  # Keep only lower triangle
+  filter(match(Variable,  names(var_labels_short)) >
+         match(Variable2, names(var_labels_short))) %>%
+  mutate(
+    r     = round(r, 3),
+    p_adj = ifelse(p_adj < .001, "< .001", round(p_adj, 3)),
+    sig   = ifelse(p_adj == "< .001" | as.numeric(p_adj) < .05, "*", "")
+  ) %>%
+  arrange(Variable, Variable2)
+
+knitr::kable(corr_tidy,
+      col.names = c("Variable 1", "Variable 2", "r", "p (adj.)", ""),
+      caption   = "Table 3. Spearman Correlations (BH-corrected)",
+      align     = "llrrl")  %>%
+  footnote(general = paste0(
+    "Spearman correlations used due to non-normality of several variables. ",
+    "p-values adjusted for multiple comparisons using Benjamini-Hochberg correction. ",
+    "* = p < .05."
+  ))
+```
+
+
