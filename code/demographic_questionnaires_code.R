@@ -2,7 +2,7 @@
 # 
 # Demographic and Questionnaires Data
 # Author: Iskra Todorova
-# Last Update: 22.04.2026
+# Last Update: 21.05.2026
 # R Version: 4.5.1
 #
 ################################################################################
@@ -184,26 +184,22 @@ ari %>% count(ID) %>% filter(n > 1)
 biq %>% count(ID) %>% filter(n > 1)
 cbq %>% count(ID) %>% filter(n > 1)
 f_sozu %>% count(ID) %>% filter(n > 1)
+
 # => currently no duplicates in the questionnaires
 
-iq %>% count(ID) %>% filter(n>1)
-# ID         n
-# <chr>  <int>
-# 1 LM_066     2
-# 2 LM_084     2
-# 3 LM_085     4
-# 4 LM_091     2
-#=> code to adjust those below, aks Heiko to delete the duplicates
+ace %>%  count(ID) %>% filter(n > 1)
+# LM_053 two databases
+ace <- ace %>%
+  filter(ID == "LM_053") %>%
+  slice(1) %>%
+  bind_rows(filter(ace, ID != "LM_053"))
 
-iq <- iq %>%
-  dplyr::filter(
-    ID != "LM_085" |
-      (ID == "LM_085" & IQ_verbal == 8 & IQ_nonverbal == 8)
-  )
+# delete LM_050, no entries for ace
+ace <- ace %>% 
+  filter(ID != "LM_050")
 
-iq <- iq %>%
-  distinct(ID, .keep_all = TRUE)
-
+# iq <- iq %>%
+#  distinct(ID, .keep_all = TRUE)
 # IF the duplicates are the same after inspection, keep only one distinct row
 # cbcl <- cbcl %>%
 #   distinct(ID, .keep_all = TRUE)
@@ -226,6 +222,7 @@ sample_merged <- cbcl %>%
   left_join(biq,    by = "ID") %>%
   left_join(cbq,    by = "ID") %>%
   left_join(f_sozu, by = "ID") %>% 
+  left_join(ace, by = "ID") %>% 
   left_join(iq, by = "ID")
 
 # inspect
@@ -235,7 +232,7 @@ sample_merged %>%
 
 
 data <- sample_merged %>% 
-  rename(sex=Geschlecht_Index,
+  rename(sex = Geschlecht_Index,
          age = IQ_Alter)
 
 save_path <- "S:/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"

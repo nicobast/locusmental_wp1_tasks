@@ -589,3 +589,36 @@ saveRDS(
   global_baseline_means,
   file = paste0(datapath_et,  "global_means_rss.rds")
 )
+
+
+
+##### Checks
+global_baseline_df %>%
+  count(id) %>%
+  print(n = Inf)
+
+summary(global_baseline_df$ts_baseline)
+
+global_baseline_df %>%
+  group_by(id) %>%
+  summarize(
+    n = n(),
+    na_rate = mean(is.na(pd)),
+    mean_pd = mean(pd, na.rm = TRUE)
+  ) %>%
+  print(n = Inf)
+
+baseline_list_split_trial <- pblapply(
+  baseline_list_split_trial,
+  function(x) {
+    x$ts_baseline <- x$logged_time - x$baseline_fixation_start_timestamp
+    
+    # Keep only the 5-second baseline window
+    x <- x[x$ts_baseline >= 0 & x$ts_baseline <= 5, ]
+    
+    return(x)
+  }
+)
+
+
+

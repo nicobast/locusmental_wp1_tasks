@@ -345,6 +345,12 @@ df_cued_agg <- df_combined %>%
 output_file <- paste0(home_path, data_path, "df_cued_agg.rds")
 saveRDS(df_cued_agg, file = output_file)
 
+output_file_1 <- paste0(home_path, data_path, "df_combined.rds")
+saveRDS(df_combined, file = output_file_1)
+
+output_file_2 <- paste0(home_path, data_path, "df_combined_hits_only.rds")
+saveRDS(df_combined_hits_only, file = output_file_2)
+
 # Extract BPSs data for habituation model
 bps <- df%>%
   group_by(id, trial_number) %>% 
