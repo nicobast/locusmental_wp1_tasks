@@ -127,11 +127,28 @@ f_sozu <- f_sozu %>%
   filter(!is.na(ID))
 
 ace <- ace %>% 
-  select(ID_Bado, ACE_Score_total) %>%
+  select(ID_Bado, ACE_Score_total, ACE_1,ACE_2,ACE_3, ACE_4,ACE_5,ACE_6,ACE_7,ACE_8,ACE_9,ACE_10,ACE_11,ACE_12,ACE_13,ACE_14) %>%
   left_join(ids, by = "ID_Bado") %>%
-  select(ID, ACE_Score_total)%>%
+  select(ID, ACE_Score_total, ACE_1,ACE_2,ACE_3, ACE_4,ACE_5,ACE_6,ACE_7,ACE_8,ACE_9,ACE_10,ACE_11,ACE_12,ACE_13,ACE_14)%>%
   filter(!is.na(ID))
 
+ace <- ace %>%
+  rename(
+    emotional_abuse = ACE_1,
+    physical_abuse = ACE_2,
+    sexual_assult = ACE_3,
+    emotional_neglect = ACE_4,
+    physical_neglect = ACE_5,
+    parents_separation = ACE_6,
+    mother_treated_violently = ACE_7,
+    family_drug_alc_problem = ACE_8,
+    family_mental_illness = ACE_9,
+    parent_prison = ACE_10,
+    low_ses = ACE_14,
+    high_peer_victimization = ACE_11,
+    high_peer_social_isolation = ACE_12,
+    high_exposute_community_violence = ACE_13
+  )
 iq <- iq %>% 
   select(ID_Bado, 
          IQ_Alter,

@@ -23,7 +23,7 @@ options(knitr.table.format = "html")
 
 
 ```{r packages, include=FALSE}
-pkgs <- c("readxl", "data.table", "ggplot2", "dplyr",
+pkgs <- c("readxl", "data.table", "ggplot2", "dplyr", "stringr",
           "psych", "lubridate", "tidyr", "knitr", "kableExtra", "ggcorrplot")
 
 installed_packages <- pkgs %in% rownames(installed.packages())
@@ -554,6 +554,58 @@ data %>%
                          ", SD = ", round(sd(data$ACE_Score_total, na.rm=TRUE), 2)),
        x = "Number of Adverse Childhood Experiences", y = "Count") +
   theme_desc
+```
+
+```{r ace-items, fig.width=8, fig.height=6}
+# ── ACE variables ──────────────────────────────────────────────────────────────
+ace_vars <- c(
+  "emotional_abuse", "physical_abuse", "sexual_assult",
+  "emotional_neglect", "physical_neglect", "parents_separation",
+  "mother_treated_violently", "family_drug_alc_problem",
+  "family_mental_illness", "parent_prison", "low_ses",
+  "high_peer_victimization", "high_peer_social_isolation",
+  "high_exposute_community_violence"
+)
+
+# ── Count responses ────────────────────────────────────────────────────────────
+ace_summary <- data %>%
+  select(all_of(ace_vars)) %>%
+  summarise(across(everything(),
+    list(yes   = ~ sum(. == 1, na.rm = TRUE),
+         total = ~ sum(!is.na(.))),
+    .names = "{.col}__{.fn}")) %>%
+  pivot_longer(everything(),
+               names_to  = c("Item", "Stat"),
+               names_sep = "__") %>%
+  pivot_wider(names_from = Stat, values_from = value) %>%
+  mutate(
+    pct  = round(yes / total * 100, 1),
+    Item = str_to_title(str_replace_all(Item, "_", " "))
+  ) %>%
+  arrange(desc(pct))
+
+# ── Plot ───────────────────────────────────────────────────────────────────────
+ggplot(ace_summary, aes(x = reorder(Item, pct), y = pct, fill = pct)) +
+  geom_col(color = "white", alpha = 0.85) +
+  geom_text(aes(label = paste0(yes, "/", total, "\n(", pct, "%)")),
+            hjust = -0.05, size = 3, fontface = "bold") +
+  scale_fill_gradient(low = "#A8C8E8", high = "#C0392B",
+                      name = "Prevalence (%)") +
+  scale_y_continuous(labels = function(x) paste0(x, "%"),
+                     expand = expansion(mult = c(0, 0.18))) +
+  coord_flip() +
+  labs(
+    title    = "Figure 18. Prevalence of Adverse Childhood Experiences",
+    subtitle = paste0("N = ", max(ace_summary$total),
+                      " | % of sample reporting 'yes' (1) for each ACE"),
+    x        = NULL,
+    y        = "Percentage (%)"
+  ) +
+  theme_desc +
+  theme(
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 9)
+  )
 ```
 
 ## Correlation Matrix
