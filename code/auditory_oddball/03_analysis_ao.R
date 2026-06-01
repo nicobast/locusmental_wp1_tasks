@@ -98,9 +98,9 @@ cat(sprintf("\nModel dataset: %d trial-level rows\n\n", nrow(df_model)))
 # =============================================================================
 
 # Load processed files
-load(paste0(home_path, demo_path, "demo_data_ao.rda"))
-data <- data_filtered
-data_filtered <- data_filtered %>%
+load(paste0(home_path, demo_path, "demo_data.rda"))
+#data <- data_filtered
+data_filtered <- data %>%
   rename(id = ID)
 
 # Create a clean version of your wide demographic data
@@ -208,7 +208,7 @@ model_performance(m_final_full)
 # Adding clincial measures
 m_3 <- lmer(
   sepr ~ trial * 
-    (CBCL_T_INT + CBCL_T_EXT + ARI_Eltern_Score_total + BIQ_Z_Score + CBQ_Negativer_Affekt_Summenwert) +
+    (CBCL_T_INT + CBCL_T_EXT + CBQ_Negativer_Affekt_Summenwert) +
     age + sex + IQ_nonverbal_z +
     (1 | id) + (1 |trial_number), 
   data = df_combined, 
@@ -221,7 +221,11 @@ model_performance(m_3)
 require(parameters)
 standardize_parameters(m_3)
 
-###--> Internalizing associated with larger responses to all stimuli
+emtrends(m_3,~trial,var='CBCL_T_INT')
+
+emmeans(m_3,pairwise~trial|CBCL_T_INT,at = list(CBCL_T_INT = c(50, 65)))
+emmeans(m_3,revpairwise~CBCL_T_INT|trial,at = list(CBCL_T_INT = c(50, 65)))
+###--> Internalizing associated with larger responses to oddball stimuli
 ###--> negative affect associated with lower resposnes to all stimuli
 
 m_3 <- lmer(
@@ -234,30 +238,60 @@ m_3 <- lmer(
 )
 anova(m_3)
 standardize_parameters(m_3)
+ggplot(df_combined,aes(CBCL_T_INT,sepr,group=trial))+geom_smooth(aes(color=trial,fill=trial))+theme_bw()
 
-#split/scale variables
-df_combined$CBCL_T_INT_split<-ifelse(df_combined$CBCL_T_INT>=65,'high','low')
-df_combined$CBCL_T_EXT_split<-ifelse(df_combined$CBCL_T_EXT>=65,'high','low')
-df_combined$CBCL_T_GES_split<-ifelse(df_combined$CBCL_T_GES>=65,'high','low')
 
-CBQ_NA_z<-scale(df_combined$CBQ_Negativer_Affekt_Summenwert)
-df_combined$CBQ_NA_z_split<-ifelse(CBQ_NA_z>=1.5,'high','low')
+# #split/scale variables
+# df_combined$CBCL_T_INT_split<-ifelse(df_combined$CBCL_T_INT>=65,'high','low')
+# df_combined$CBCL_T_EXT_split<-ifelse(df_combined$CBCL_T_EXT>=65,'high','low')
+# df_combined$CBCL_T_GES_split<-ifelse(df_combined$CBCL_T_GES>=65,'high','low')
+# 
+# CBQ_NA_z<-scale(df_combined$CBQ_Negativer_Affekt_Summenwert)
+# df_combined$CBQ_NA_z_split<-ifelse(CBQ_NA_z>=1.5,'high','low')
+# 
+# df_combined$sepr_z<-scale(df_combined$sepr)
+# hist(df_combined$sepr_z)
+# 
+# m_3 <- lmer(
+#   sepr_z ~ trial * 
+#     CBCL_T_GES_split * CBQ_NA_z_split + 
+#     (1 | id) + (1 |trial_number), 
+#   data = df_combined, 
+#   REML = T
+# )
+# 
+# anova(m_3)
+# summary(m_3)
+# emmeans(m_3,revpairwise~CBQ_NA_z_split)
+# emmeans(m_3,~CBQ_NA_z_split+CBCL_T_GES_split)
 
-df_combined$sepr_z<-scale(df_combined$sepr)
-hist(df_combined$sepr_z)
 
-m_3 <- lmer(
-  sepr_z ~ trial * 
-    CBCL_T_GES_split * CBQ_NA_z_split + 
+
+# =============================================================================
+#
+# MODEL 4 – BPS ~ Clincial measures - in a habituation model
+#
+# =============================================================================
+
+# Adding clincial measures
+
+df_combined$trial_number_z<-scale(df_combined$trial_number)
+m_4 <- lmer(
+  pd_low ~ trial * trial_number_z * 
+    (CBCL_T_INT + CBCL_T_EXT + CBQ_Negativer_Affekt_Summenwert) +
+    age + sex + IQ_nonverbal_z +
     (1 | id) + (1 |trial_number), 
   data = df_combined, 
   REML = T
 )
 
-anova(m_3)
-summary(m_3)
-emmeans(m_3,revpairwise~CBQ_NA_z_split)
-emmeans(m_3,~CBQ_NA_z_split+CBCL_T_GES_split)
+anova(m_4)
+standardize_parameters(m_4)
+
+
+emtrends(m_4,~trial_number_z|CBCL_T_INT,var='trial_number_z',at=list(CBCL_T_INT = c(45, 55, 65)))
+emtrends(m_4,~trial_number_z|CBCL_T_EXT,var='trial_number_z',at=list(CBCL_T_EXT = c(45, 55, 65)))
+###-> Internalizing associated with stronger habituation, Externalizing assoicated with less Habituation
 
 
 #### Aggregate Data  ----
