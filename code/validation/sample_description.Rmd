@@ -24,7 +24,7 @@ options(knitr.table.format = "html")
 
 ```{r packages, include=FALSE}
 pkgs <- c("readxl", "data.table", "ggplot2", "dplyr", "stringr",
-          "psych", "lubridate", "tidyr", "knitr", "kableExtra", "ggcorrplot")
+          "psych", "lubridate", "tidyr", "knitr", "kableExtra", "ggcorrplot", 'ggVennDiagram')
 
 installed_packages <- pkgs %in% rownames(installed.packages())
 if (any(!installed_packages)) {
@@ -39,7 +39,7 @@ lapply(pkgs, function(pkg) {
 
 
 ```{r load-data, include=FALSE}
-data_path <- "S:/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
+data_path <- "//192.168.88.212/daten/KJP_Studien/LOCUS_MENTAL/6_Versuchsdaten/"
 load(file.path(data_path, "demo_data.rda"))
 
 # Convert age to months
@@ -240,6 +240,9 @@ data %>%
   theme_desc +
   theme(legend.position = "bottom")
 ```
+
+## CBCL Clinical Symptoms (T ≥ 65)
+
 ```{r plot-cbcl, fig.width=6, fig.height=4}
 data %>%
   select(CBCL_T_INT, CBCL_T_EXT, CBCL_T_GES) %>%
@@ -251,25 +254,34 @@ data %>%
     "CBCL_T_EXT" = "Externalizing",
     "CBCL_T_GES" = "Total")) %>%
   ggplot(aes(x = Scale, y = T_Score, fill = Scale)) +
-  geom_boxplot(alpha = 0.7, outlier.shape = 21,
+  
+  #show as violinplot with individual points jittered
+  geom_violin(alpha = 0.7, outlier.shape = 21,
                outlier.fill = "white", show.legend = FALSE) +
+  geom_jitter(aes(color=Scale)) +
+  
+  # clinical cutoff T ≥ 60
   geom_hline(yintercept = 65, linetype = "dashed",
-             color = "grey40", linewidth = 0.5) +      # clinical cutoff T ≥ 60
+             color = "grey40", linewidth = 0.5) +
+  
   annotate("text", x = 0.55, y = 61.5,
            label = "T = 65", size = 3, color = "grey40") +
   scale_fill_manual(values = c(
     "Internalizing" = "#5B8DB8",
     "Externalizing" = "#E08B5D",
     "Total"         = "#6DBF8B")) +
+  scale_color_manual(values = c(
+    "Internalizing" = "#5B8DB8",
+    "Externalizing" = "#E08B5D",
+    "Total"         = "#6DBF8B")) +
+  
   labs(title = "Figure 4. CBCL T-Score Distributions",
        x = NULL, y = "T-Score") +
   theme_desc
 ```
 
-## CBCL Clinical Symptoms (T ≥ 65)
 
 ```{r cbcl-combined, fig.width=6, fig.height=5}
-library(ggVennDiagram)
 
 cutoff <- 65
 
@@ -670,7 +682,7 @@ diag(p_adjusted) <- 0    # diagonal gets 0 so ggcorrplot handles it cleanly
 
 ggcorrplot(
   r_matrix,
-  type          = "lower",
+  type          = "upper",
   lab           = TRUE,
   lab_size      = 3,
   p.mat         = p_adjusted,
