@@ -71,15 +71,15 @@ Monitor settings are configured in the experiment's config.json file. This file 
 ### EEG installation
 
 * install Brain Vision LSL Connector
- * pushes EEG stream from LiveAmp amplifier to LSL
- * also allows to check impedances (potentially totally bypass BrainVision Recorder)
+  * pushes EEG stream from LiveAmp amplifier to LSL
+  * also allows to check impedances (potentially totally bypass BrainVision Recorder)
 * install Lab Streaming layer
- * pylsl via "pip install pylsl" to virtual environment that contains psychopy)
- * LSL functionality in Python
- * allows to send LSL triggers from within Psychopy
+  * pylsl via "pip install pylsl" to virtual environment that contains psychopy)
+  * LSL functionality in Python
+  * allows to send LSL triggers from within Psychopy
 * install LabRecorder
- * takes EEG stream (LSL connector) and psychopy triggers (pylsl) and saves to file (XDF format)
- * a config file that can be loaded is provided with the git repo
+  * takes EEG stream (LSL connector) and psychopy triggers (pylsl) and saves to file (XDF format)
+  * a config file that can be loaded is provided with the git repo
 
 ### EEG execution
 
