@@ -66,6 +66,32 @@ Monitor settings are configured in the experiment's config.json file. This file 
 * in case testmode = True: the mouse is used as eyetracker and data stored in hdf5 file: -> import h5py -> access data: dset1 = f['data_collection/events/eyetracker/MonocularEyeSampleEvent']
 * the current script only supports non-discontinued eye trackers by Tobii that are supported by Tobii PRO SDK >=2.0 (current tobii_research module, https://connect.tobii.com/s/article/new-Tobii-Pro-SDK-and-ETM?language=en_US). If you want to use an older eye-tracker (e.g.: Tobii TX300), you need to install an tobii_research module that supports that eye-tracker (https://pypi.org/project/tobii-research/1.10.2/#files). Download the respective wheel file and install this file with  pip
 
+## EEG
+
+### EEG installation
+
+* install Brain Vision LSL Connector
+** pushes EEG stream from LiveAmp amplifier to LSL
+** also allows to check impedances (potentially totally bypass BrainVision Recorder)
+* install Lab Streaming layer
+** pylsl via "pip install pylsl" to virtual environment that contains psychopy)
+** LSL functionality in Python
+** allows to send LSL triggers from within Psychopy
+* install LabRecorder
+** takes EEG stream (LSL connector) and psychopy triggers (pylsl) and saves to file (XDF format)
+** a config file that can be loaded is provided with the git repo
+
+### EEG execution
+
+* start Lab Recorder
+** load config file provided with repo that has correct naming conventions and marker streams
+** these streams can be in RED and will be later picked up by the LabRecorder
+** start recording (click yes to both warnings)
+* start BrainVIsion LSL Connector
+** setup EEG R-NET cap with correct size
+** check impedances
+** LINK to push EEG LSL stream
+
 ## Run Battery 
   * Run the Task
       - Execute the Runner script from the project folder location.
